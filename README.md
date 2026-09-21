@@ -9,7 +9,7 @@ A **GDT data type** for [Eclipse Open Integration Engine](https://openintegratio
 - The **GDT** data type for source and destination connectors, with a properties panel in the **Swing client** and the **web administrator**.
 - Reads GDT (version 2.1 of the interface description) into **XML** and writes XML back to GDT. Sets, fields that occur more than once (`6220`, `8410`, ...), several sets in one file and all line endings (CRLF, LF, CR) are handled.
 - **Line lengths are calculated for you** when XML is written as GDT, and so is field `8100` (the length of the set). A transformer can build a set from scratch without counting characters.
-- **Lenient by default.** Many devices get the length digits wrong (the sample files of the specification itself do), so a wrong length is ignored. *Strict Parsing* rejects it.
+- **Lenient by default.** Real devices do more than the specification allows (see [What real devices write](#what-real-devices-write)): wrong lengths, values of several lines, four digit lengths, a set length of six digits. All of that is read. *Strict Parsing* rejects it.
 - **Metadata** for the message list and searches: source = sender GDT-ID (`8316`), type = set type (`8000`, e.g. `6310`), version = GDT version (`9218`).
 - **Message tree descriptions** with the names of the fields of the specification.
 - **Batch** processing: a file with several sets can be split into one message per set.
@@ -57,7 +57,8 @@ becomes
 - The order of the fields is the order of the message. A field that occurs more than once, such as `6220`, is repeated.
 - The `name` attributes come from the specification and can be switched off (*Field Names*). Attributes are ignored when the XML is turned back into GDT, and so are `type` and the length digits.
 - The value of a field is exactly what is in the message, spaces included. That matters for `6228`, the formatted result table.
-- Control characters (below space, apart from a tab) cannot be in XML and are left out.
+- A value that has line breaks in it (a report text, for example) is one field, with a line break (`\n`) in the XML. It is written as several lines again when the XML is turned back into GDT.
+- Control characters (below space, apart from a tab and a line break) cannot be in XML and are left out.
 
 The example files in [examples](examples) are the real output of the plugin.
 
@@ -71,7 +72,20 @@ The example files in [examples](examples) are the real output of the plugin.
 | Line Ending | What ends a line when XML is written as GDT: CRLF, LF or CR. The specification asks for CRLF | CRLF |
 | Split Batch By (Batch) | *Set*: every set is one message. *JavaScript*: your own splitter. Only used when *Process Batch Files* is on in the connector | Set |
 
-The length of every line is always calculated, and it counts a CR LF whichever line ending is written, as the specification does. Lengths are counted in characters, which are bytes in the single byte character sets that GDT uses.
+The length of every line is always calculated, and it counts a CR LF whichever line ending is written, as the specification does. A line break inside a value counts as CR LF as well. Lengths are counted in characters, which are bytes in the single byte character sets that GDT uses.
+
+## What real devices write
+
+The specification is from 2001, and devices do not stick to it. This is what the data type reads, based on a file of a sleep-study device (Noxturnal, NOX T3) with more than 5000 fields:
+
+| The device writes | The data type |
+|---|---|
+| A wrong length in front of a line | Ignores it (unless *Strict Parsing*) |
+| A value with line breaks in it: only the first line has a length and a field number, the lines that follow are plain text | Reads them as part of that field, with a line break (`\n`) between them |
+| A length of four digits (`1342`) for a value longer than 990 characters | Reads it as a four digit length when that gives a field of the specification and the three digit reading (`134` and field `2842`) does not |
+| Field `8100` (set length) with six digits, and a value that is a few characters off | Reads it as it is. When writing, `8100` has as many digits as it needs and says what the set really is |
+
+When XML is written as GDT, a value longer than 990 characters gets a four digit length, as these devices do; the specification has three. A field can hold at most 9990 characters. Turn *Calculate Set Length* off to write `8100` as it is in the XML.
 
 ## Using it in a channel
 
@@ -105,7 +119,7 @@ To write GDT, let the outbound data type of the destination be **GDT** and give 
 </GDT>
 ```
 
-The line lengths and `8100` are added when the message is written. A value cannot contain a line break; use several fields (for example `6228`) instead. A field can hold at most 990 characters.
+The line lengths and `8100` are added when the message is written. A value can have line breaks in it; they are written as several lines.
 
 Which set answers which:
 

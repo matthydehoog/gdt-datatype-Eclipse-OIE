@@ -353,20 +353,58 @@ public class GDTSerializerTest {
     }
 
     @Test
-    public void aFieldWithALineBreakIsRefused() {
-        assertFails(serializer(), false, "<GDT><set><F8000>6310</F8000><F6228>a\nb</F6228></set></GDT>", "line break");
+    public void aValueWithLineBreaksBecomesSeveralLinesAndComesBack() throws Exception {
+        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><F6228>one\ntwo\n\nfour</F6228><F3101>Jan</F3101></set></GDT>");
+
+        // one field, spread over four physical lines; the length counts every CR LF
+        assertTrue(gdt, gdt.contains("025" + "6228one\r\ntwo\r\n\r\nfour\r\n"));
+        GDTParser.FieldSet set = GDTParser.parse(gdt, false).get(0);
+        assertEquals("one\ntwo\n\nfour", set.value("6228"));
+        assertEquals("Jan", set.value("3101"));
+        assertEquals(gdt, serializer().fromXML(serializer().toXML(gdt)));
     }
 
     @Test
-    public void aFieldThatIsTooLongIsRefused() throws Exception {
+    public void aLongValueGetsAFourDigitLength() throws Exception {
         StringBuilder value = new StringBuilder();
         for (int i = 0; i < 991; i++) {
             value.append('x');
         }
+        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><F8420>" + value + "</F8420></set></GDT>");
+
+        // the line is 1001 long: three digits would be 1000, and the fourth digit is part of the line
+        assertTrue(gdt.contains("1001" + "8420" + value + "\r\n"));
+        assertEquals(value.toString(), GDTParser.parse(gdt, false).get(0).value("8420"));
+    }
+
+    @Test
+    public void aValueThatIsMuchTooLongIsRefused() {
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < 9991; i++) {
+            value.append('x');
+        }
         assertFails(serializer(), false, "<GDT><set><F8000>6310</F8000><F6228>" + value + "</F6228></set></GDT>", "Field 6228 is too long");
-        // 990 fits
-        String ok = serializer().fromXML("<GDT><set><F8000>6310</F8000><F6228>" + value.substring(1) + "</F6228></set></GDT>");
-        assertTrue(ok.contains("999" + "6228"));
+    }
+
+    @Test
+    public void setLengthWithMoreThanFiveDigits() throws Exception {
+        StringBuilder xml = new StringBuilder("<GDT><set><F8000>6310</F8000>");
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < 900; i++) {
+            text.append('y');
+        }
+        for (int i = 0; i < 130; i++) {
+            xml.append("<F6228>").append(text).append("</F6228>");
+        }
+        xml.append("</set></GDT>");
+
+        String gdt = serializer().fromXML(xml.toString());
+        String length = GDTParser.parse(gdt, false).get(0).value("8100");
+
+        assertEquals(6, length.length());
+        // the length says what the set really is, itself included, so that a strict reader accepts it
+        assertEquals(1, GDTParser.parse(gdt, true).size());
+        assertEquals(gdt.length(), Integer.parseInt(length));
     }
 
     @Test
@@ -374,6 +412,84 @@ public class GDTSerializerTest {
         assertFails(serializer(), false, "<GDT><set><PID>1</PID></set></GDT>", "F and its four digit number");
         assertFails(serializer(), false, "<GDT><F3101>x</F3101></GDT>", "a set is an element named set");
         assertFails(serializer(), false, "<GDT><set><F3101><b>x</b></F3101></set></GDT>", "can only contain text");
+    }
+
+    // ---- what real devices write
+
+    /** A set as a sleep-study device writes it: a field of many lines with a four digit length that is one too low. */
+    private static String deviceSet() {
+        StringBuilder longValue = new StringBuilder("Position changes when at least 5 seconds of continuous position is found.");
+        for (int i = 0; i < 9; i++) {
+            longValue.append("\r\n").append("Movement is detected when the activity signal exceeds a threshold of 0,2 for a minimum of 1 seconds and more text to make it long enough ").append(i);
+        }
+        String value = longValue.toString();
+        int declared = 4 + 4 + value.length() + 2 - 1;
+        return line("8000", "6310") + "0158100138144\r\n" + line("8316", "NOX_T3") + line("8410", "Analysis Criteria") + declared + "8420" + value + "\r\n" + line("8410", "Excluded Time (m)") + line("8420", "0,0") + line("8421", "m");
+    }
+
+    @Test
+    public void aFieldOfSeveralLinesWithAFourDigitLengthIsOneField() throws Exception {
+        GDTParser.FieldSet set = GDTParser.parse(deviceSet(), false).get(0);
+
+        assertEquals("NOX_T3", set.value("8316"));
+        assertEquals("138144", set.value("8100"));
+        // the fields before and after the long one are intact
+        assertEquals(8, set.fields.size());
+        GDTParser.Field longField = set.fields.get(4);
+        assertEquals("8420", longField.id);
+        assertTrue(longField.value.startsWith("Position changes"));
+        assertEquals(10, longField.value.split("\n").length);
+        assertEquals("Excluded Time (m)", set.fields.get(5).value);
+        assertEquals("m", set.fields.get(7).value);
+    }
+
+    @Test
+    public void aDeviceSetSurvivesTheTripThroughXml() throws Exception {
+        String xml = serializer().toXML(deviceSet());
+        Element root = xml(xml);
+
+        assertEquals(10, child(root, "F8420", 0).getTextContent().split("\n").length);
+        GDTParser.FieldSet back = GDTParser.parse(serializer().fromXML(xml), false).get(0);
+        assertEquals(GDTParser.parse(deviceSet(), false).get(0).value("8420"), back.value("8420"));
+        assertEquals(8, back.fields.size());
+    }
+
+    @Test
+    public void strictRejectsWhatTheSpecificationDoesNotAllow() {
+        try {
+            GDTParser.parse(deviceSet(), true);
+            fail();
+        } catch (GDTParser.SyntaxException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("length says"));
+        }
+        try {
+            GDTParser.parse(line("8000", "6310") + "some text that is not a GDT line\r\n", true);
+            fail();
+        } catch (GDTParser.SyntaxException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("is not a GDT line"));
+        }
+    }
+
+    @Test
+    public void aNormalLongLineIsNotTakenForAFourDigitLength() throws Exception {
+        // 190 characters: the length is 199 and the field number 8420, and 1998 must not become the length
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < 190; i++) {
+            value.append('z');
+        }
+        GDTParser.FieldSet set = GDTParser.parse(line("8000", "6310") + line("8420", value.toString()), false).get(0);
+
+        assertEquals("8420", set.fields.get(1).id);
+        assertEquals(value.toString(), set.fields.get(1).value);
+    }
+
+    @Test
+    public void aFieldNumberThatIsNotInTheSpecificationStaysAsItIs() throws Exception {
+        String longUnknown = line("8000", "6310") + "0291234" + "value";
+        // no four digit reading: the field is 1234 whatever the length says
+        GDTParser.FieldSet set = GDTParser.parse(longUnknown + "\r\n", false).get(0);
+
+        assertEquals("1234", set.fields.get(1).id);
     }
 
     // ---- metadata

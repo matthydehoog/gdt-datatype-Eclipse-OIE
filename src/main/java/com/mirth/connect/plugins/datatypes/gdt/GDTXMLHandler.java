@@ -26,8 +26,10 @@ import com.mirth.connect.plugins.datatypes.gdt.GDTParser.Field;
  * 8100 it is added behind 8000, since a set needs one.
  *
  * The lengths are those of the specification: a line counts its three length digits, the four digit field
- * number, the content and CR LF, whichever line ending is written. They are counted in characters, which are
- * bytes in the single byte character sets that GDT uses.
+ * number, the content and CR LF, whichever line ending is written (a line break inside a value counts as CR LF
+ * as well). A line that needs a fourth digit for its length counts that digit too, and so does field 8100 when it
+ * has more than five digits. They are counted in characters, which are bytes in the single byte character sets
+ * that GDT uses.
  */
 public class GDTXMLHandler extends DefaultHandler {
     private static final Pattern FIELD_NAME = Pattern.compile("[Ff](\\d{4})");
@@ -75,11 +77,8 @@ public class GDTXMLHandler extends DefaultHandler {
     @Override
     public void endElement(String uri, String name, String qName) throws SAXException {
         if (depth == 3) {
-            String value = text.toString();
-            if (value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
-                throw new SAXException("Field " + fieldId + " contains a line break; a GDT field is one line. Use several fields (for example 6228) instead.");
-            }
-            fields.add(new Field(fieldId, value));
+            // A line break in a value is written as a line ending; in here it is one \n
+            fields.add(new Field(fieldId, text.toString().replace("\r\n", "\n").replace('\r', '\n')));
         } else if (depth == 2) {
             writeSet();
         }
@@ -106,25 +105,32 @@ public class GDTXMLHandler extends DefaultHandler {
                 lengthIndex = 1;
             }
             if (lengthIndex >= 0) {
-                // The length field is part of what it counts, and it always has five digits.
-                int total = 0;
+                // The length field is part of what it counts. It has five digits, or more when the set is longer.
+                int others = 0;
                 for (int i = 0; i < set.size(); i++) {
-                    total += i == lengthIndex ? GDTParser.lineLength("00000") : GDTParser.lineLength(set.get(i).value);
+                    if (i != lengthIndex) {
+                        others += GDTParser.physicalLength(set.get(i).value);
+                    }
                 }
-                if (total > 99999) {
-                    throw new SAXException("The set is " + total + " long; field 8100 can hold at most 99999");
+                int digits = 5;
+                int total = others + GDTParser.LINE_OVERHEAD + digits;
+                while (String.valueOf(total).length() > digits) {
+                    digits++;
+                    total = others + GDTParser.LINE_OVERHEAD + digits;
                 }
-                set.set(lengthIndex, new Field(GDTParser.FIELD_SET_LENGTH, String.format("%05d", total)));
+                set.set(lengthIndex, new Field(GDTParser.FIELD_SET_LENGTH, String.format("%0" + digits + "d", total)));
             }
         }
 
         String ending = properties.getLineEnding().characters();
         for (Field field : set) {
-            int length = GDTParser.lineLength(field.value);
-            if (length > GDTParser.MAX_LINE_LENGTH) {
-                throw new SAXException("Field " + field.id + " is too long: a GDT line is at most " + GDTParser.MAX_LINE_LENGTH + " long, so the content can have at most " + (GDTParser.MAX_LINE_LENGTH - GDTParser.LINE_OVERHEAD) + " characters (it has " + field.value.length() + "). Split it over several fields.");
+            int length = GDTParser.physicalLength(field.value);
+            if (GDTParser.lineLength(field.value) > GDTParser.MAX_LONG_LINE_LENGTH - 1) {
+                throw new SAXException("Field " + field.id + " is too long: a GDT line is at most " + GDTParser.MAX_LONG_LINE_LENGTH + " long, so the content can have at most " + (GDTParser.MAX_LONG_LINE_LENGTH - GDTParser.LINE_OVERHEAD) + " characters (it has " + GDTParser.contentLength(field.value) + "). Split it over several fields.");
             }
-            output.append(String.format("%03d", length)).append(field.id).append(field.value).append(ending);
+            // The specification has three digits. Real devices write four for a value that is longer, and so do we.
+            String digits = length > GDTParser.MAX_LINE_LENGTH ? String.format("%04d", length) : String.format("%03d", length);
+            output.append(digits).append(field.id).append(field.value.replace("\n", ending)).append(ending);
         }
     }
 }

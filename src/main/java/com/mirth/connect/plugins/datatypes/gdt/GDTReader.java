@@ -114,7 +114,7 @@ public class GDTReader extends AbstractXMLReader {
         StringBuilder sb = null;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            boolean ok = c == '\t' || (c >= 0x20 && c != 0xFFFE && c != 0xFFFF);
+            boolean ok = c == '\t' || c == '\n' || (c >= 0x20 && c != 0xFFFE && c != 0xFFFF);
             if (!ok && sb == null) {
                 sb = new StringBuilder(value.length()).append(value, 0, i);
             } else if (ok && sb != null) {
