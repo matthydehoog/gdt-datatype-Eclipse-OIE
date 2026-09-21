@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "datatype-gdt",
+  "name": "GDT Data Type",
+  "description": "Data type for GDT (Geraete-Daten-Traeger), the QMS interface between medical devices and practice systems. Converts GDT to XML and back, calculates the line and set lengths, and can split a file with several sets.",
+  "type": "datatype",
+  "ui": ["web", "swing"],
+  "version": "1.0.0",
+  "minEngineVersion": "4.6.0",
+  "maxEngineVersion": null,
+  "filename": "datatype-gdt-{version}.zip",
+  "restartRequired": true,
+  "homepage": "https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE",
+  "documentation": "https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE#readme",
+  "storeDocs": "README.md",
+  "license": "MPL-2.0",
+  "authors": ["Matthy.J. de Hoog"],
+  "keywords": ["gdt", "qms", "medical devices", "ecg", "spirometry", "practice system", "data type", "healthcare"],
+  "deprecated": false
+}

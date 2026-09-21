@@ -1,0 +1,18 @@
+<pluginMetaData path="datatype-gdt">
+	<name>GDT Data Type</name>
+	<author>X Connections</author>
+	<pluginVersion>1.0.0</pluginVersion>
+	<mirthVersion>4.6.0</mirthVersion>
+	<url>https://x-connections.info</url>
+	<description>This plugin provides support for the GDT data type (Geraete-Daten-Traeger, the QMS interface between medical devices and practice systems: sets of lines with a length, a field number and a value).</description>
+	<serverClasses>
+		<string>com.mirth.connect.plugins.datatypes.gdt.server.GDTDataTypeServerPlugin</string>
+	</serverClasses>
+	<clientClasses>
+		<string>com.mirth.connect.plugins.datatypes.gdt.client.GDTDataTypeClientPlugin</string>
+	</clientClasses>
+	<templateClassName>com.mirth.connect.plugins.datatypes.gdt.client.GDTDataTypeCodeTemplatePlugin</templateClassName>
+	<library type="CLIENT" path="datatype-gdt-client.jar" />
+	<library type="SHARED" path="datatype-gdt-shared.jar" />
+	<library type="SERVER" path="datatype-gdt-server.jar" />
+</pluginMetaData>
