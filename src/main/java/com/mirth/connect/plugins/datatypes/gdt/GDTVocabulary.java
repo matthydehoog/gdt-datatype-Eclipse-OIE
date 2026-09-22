@@ -26,6 +26,15 @@ public class GDTVocabulary extends MessageVocabulary {
         if (elementId.equals(GDTReader.SET)) {
             return "Set";
         }
+        if (elementId.equals(GDTReader.GROUP)) {
+            return "Test";
+        }
+        if (elementId.equals(GDTReader.CATEGORIES)) {
+            return "Categories";
+        }
+        if (elementId.equals(GDTReader.CATEGORY)) {
+            return "Category";
+        }
         if (elementId.length() == 5 && (elementId.charAt(0) == 'F' || elementId.charAt(0) == 'f')) {
             String name = GDTFields.fieldName(elementId.substring(1));
             return name == null ? "" : name;

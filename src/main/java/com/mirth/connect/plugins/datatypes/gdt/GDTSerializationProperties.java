@@ -46,6 +46,8 @@ public class GDTSerializationProperties extends SerializationProperties {
     private Boolean calculateSetLength = Boolean.TRUE;
     private Boolean fieldNames = Boolean.TRUE;
     private boolean strict = false;
+    private boolean groupTests = false;
+    private boolean groupCategories = false;
 
     public GDTSerializationProperties() {
 
@@ -56,6 +58,8 @@ public class GDTSerializationProperties extends SerializationProperties {
         this.calculateSetLength = properties.isCalculateSetLength();
         this.fieldNames = properties.isFieldNames();
         this.strict = properties.isStrict();
+        this.groupTests = properties.isGroupTests();
+        this.groupCategories = properties.isGroupCategories();
     }
 
     @Override
@@ -66,6 +70,8 @@ public class GDTSerializationProperties extends SerializationProperties {
         properties.put("fieldNames", new DataTypePropertyDescriptor(isFieldNames(), "Field Names", "If checked, the name of each field from the GDT specification is added to the XML as an attribute, for example <F3101 name=\"Patient name\">. The names are ignored when converting XML to GDT.", PropertyEditorType.BOOLEAN));
         properties.put("calculateSetLength", new DataTypePropertyDescriptor(isCalculateSetLength(), "Calculate Set Length", "If checked, field 8100 (set length) is calculated when converting XML to GDT, and added after field 8000 when the XML has none. If not checked, 8100 is written as it is in the XML. The length of every line (the first three digits) is always calculated.", PropertyEditorType.BOOLEAN));
         properties.put("lineEnding", new DataTypePropertyDescriptor(getLineEnding(), "Line Ending", "What ends a line when XML is converted to GDT. The specification asks for CRLF. When reading GDT, CRLF, LF and CR are all accepted.", PropertyEditorType.OPTION, LineEnding.values()));
+        properties.put("groupTests", new DataTypePropertyDescriptor(isGroupTests(), "Group Test Fields", "If checked, a repeated field 8410 (Test ID) and the fields 8411 (Test name), 8420 (Result value) and 8421 (Unit) that follow it are nested together in one <test> element, instead of being siblings of the set. A new 8410, or any other field, ends the group. Converting XML to GDT flattens <test> back into the same fields in the same order, so the GDT message does not change.", PropertyEditorType.BOOLEAN));
+        properties.put("groupCategories", new DataTypePropertyDescriptor(isGroupCategories(), "Group Categories", "If checked, an open category (a field 6330, 6332, ..., 6398 with the category name, followed by 6331, 6333, ..., 6399 with its content, for example OrderID) becomes <category name=\"OrderID\">356218126</category> instead of the two F#### fields, and a run of them is wrapped in one <categories> element. Converting XML to GDT turns <categories> back into the same fields, numbered from 6330 again.", PropertyEditorType.BOOLEAN));
 
         return properties;
     }
@@ -84,6 +90,12 @@ public class GDTSerializationProperties extends SerializationProperties {
             }
             if (properties.get("lineEnding") != null) {
                 this.lineEnding = (LineEnding) properties.get("lineEnding");
+            }
+            if (properties.get("groupTests") != null) {
+                this.groupTests = (Boolean) properties.get("groupTests");
+            }
+            if (properties.get("groupCategories") != null) {
+                this.groupCategories = (Boolean) properties.get("groupCategories");
             }
         }
     }
@@ -120,6 +132,22 @@ public class GDTSerializationProperties extends SerializationProperties {
         this.strict = strict;
     }
 
+    public boolean isGroupTests() {
+        return groupTests;
+    }
+
+    public void setGroupTests(boolean groupTests) {
+        this.groupTests = groupTests;
+    }
+
+    public boolean isGroupCategories() {
+        return groupCategories;
+    }
+
+    public void setGroupCategories(boolean groupCategories) {
+        this.groupCategories = groupCategories;
+    }
+
     // @formatter:off
     @Override public void migrate3_0_1(DonkeyElement element) {}
     @Override public void migrate3_0_2(DonkeyElement element) {}
@@ -143,6 +171,8 @@ public class GDTSerializationProperties extends SerializationProperties {
         purgedProperties.put("fieldNames", isFieldNames());
         purgedProperties.put("calculateSetLength", isCalculateSetLength());
         purgedProperties.put("lineEnding", getLineEnding());
+        purgedProperties.put("groupTests", isGroupTests());
+        purgedProperties.put("groupCategories", isGroupCategories());
         return purgedProperties;
     }
 }

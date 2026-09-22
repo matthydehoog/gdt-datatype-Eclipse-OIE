@@ -1,7 +1,7 @@
 {
     "id": "datatype-gdt",
     "name": "GDT Data Type",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "author": "X Connections",
     "description": "GDT data type properties - web equivalent of the GDT DataTypeClientPlugin.",
     "oie": { "apiMin": "4.6" },

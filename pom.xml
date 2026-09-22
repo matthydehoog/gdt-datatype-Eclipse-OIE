@@ -6,7 +6,7 @@
 
   <groupId>com.matthy.oie</groupId>
   <artifactId>datatype-gdt</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.3</version>
   <packaging>jar</packaging>
 
   <name>OIE GDT Data Type</name>

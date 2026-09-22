@@ -25,6 +25,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import com.mirth.connect.donkey.model.message.MessageSerializerException;
@@ -57,6 +58,9 @@ public class GDTSerializerTest {
     }
 
     private static final String[] TEST_DATA_TRANSFER = { "80006310", "8315PRAX_EDP", "8316LZBD_SYS", "921802.00", "300002345", "3101Samplesmith", "3102John", "310301101945", "31101", "362278", "362379", "8402BDM01", "620023101998", "6220This is a two-line", "6220result of 24h-blood pressure test", "6227Comments to a long-term-blood pressure test", "8410SYSMXTG", "8411Systole max day phase", "8420142", "8421mmHg", "843223101998", "8439163400" };
+
+    /** Several measured values in a row, each its own 8410/8411/8420 triple, as a sleep study device writes them. */
+    private static final String[] MULTI_TEST_TRANSFER = { "80006310", "8410Height", "8411Height", "8420180,0", "8410Snore Index", "8411Snore Index", "842010,3" };
 
     private static GDTSerializer serializer(GDTSerializationProperties p) {
         return new GDTSerializer(new SerializerProperties(p, null, null));
@@ -211,6 +215,238 @@ public class GDTSerializerTest {
         assertEquals(2, results.getLength());
         assertEquals("This is a two-line", results.item(0).getTextContent());
         assertEquals("result of 24h-blood pressure test", results.item(1).getTextContent());
+    }
+
+    // ---- grouping the 8410/8411/8420/8421 fields of one test
+
+    @Test
+    public void groupTestsIsOffByDefault() throws Exception {
+        Element root = xml(serializer().toXML(set(TEST_DATA_TRANSFER)));
+
+        assertEquals(0, root.getElementsByTagName("test").getLength());
+        assertEquals("set", child(root, "F8410", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupTestsNestsTheFieldsOfOneTest() throws Exception {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupTests(true);
+        Element root = xml(serializer(p).toXML(set(TEST_DATA_TRANSFER)));
+
+        NodeList tests = root.getElementsByTagName("test");
+        assertEquals(1, tests.getLength());
+        Element test = (Element) tests.item(0);
+        assertEquals("SYSMXTG", child(test, "F8410", 0).getTextContent());
+        assertEquals("Systole max day phase", child(test, "F8411", 0).getTextContent());
+        assertEquals("142", child(test, "F8420", 0).getTextContent());
+        assertEquals("mmHg", child(test, "F8421", 0).getTextContent());
+        // 8432 and 8439 are not part of the test: they end the group
+        assertEquals("set", child(root, "F8432", 0).getParentNode().getNodeName());
+        assertEquals("set", child(root, "F8439", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupTestsMakesOneGroupPerRepeatedTestId() throws Exception {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupTests(true);
+        Element root = xml(serializer(p).toXML(set(MULTI_TEST_TRANSFER)));
+
+        NodeList tests = root.getElementsByTagName("test");
+        assertEquals(2, tests.getLength());
+        Element height = (Element) tests.item(0);
+        assertEquals("Height", child(height, "F8410", 0).getTextContent());
+        assertEquals("Height", child(height, "F8411", 0).getTextContent());
+        assertEquals("180,0", child(height, "F8420", 0).getTextContent());
+        Element snoreIndex = (Element) tests.item(1);
+        assertEquals("Snore Index", child(snoreIndex, "F8410", 0).getTextContent());
+        assertEquals("Snore Index", child(snoreIndex, "F8411", 0).getTextContent());
+        assertEquals("10,3", child(snoreIndex, "F8420", 0).getTextContent());
+    }
+
+    @Test
+    public void groupTestsHandlesARealDeviceSet() throws Exception {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupTests(true);
+        Element root = xml(serializer(p).toXML(deviceSet()));
+
+        NodeList tests = root.getElementsByTagName("test");
+        assertEquals(2, tests.getLength());
+        Element analysisCriteria = (Element) tests.item(0);
+        assertEquals("Analysis Criteria", child(analysisCriteria, "F8410", 0).getTextContent());
+        assertEquals(10, child(analysisCriteria, "F8420", 0).getTextContent().split("\n").length);
+        assertEquals(0, analysisCriteria.getElementsByTagName("F8411").getLength());
+        Element excludedTime = (Element) tests.item(1);
+        assertEquals("Excluded Time (m)", child(excludedTime, "F8410", 0).getTextContent());
+        assertEquals("0,0", child(excludedTime, "F8420", 0).getTextContent());
+        assertEquals("m", child(excludedTime, "F8421", 0).getTextContent());
+        // 8316, before the first test, is not part of any group
+        assertEquals("set", child(root, "F8316", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupTestsRoundTripGivesTheSameMessage() throws Exception {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupTests(true);
+        GDTSerializer s = serializer(p);
+
+        assertEquals(set(TEST_DATA_TRANSFER), s.fromXML(s.toXML(set(TEST_DATA_TRANSFER))));
+        assertEquals(set(MULTI_TEST_TRANSFER), s.fromXML(s.toXML(set(MULTI_TEST_TRANSFER))));
+
+        // deviceSet() declares a wrong set length (8100) on purpose, which gets recalculated on the way
+        // back (see aDeviceSetSurvivesTheTripThroughXml), so compare the fields rather than the raw text
+        GDTParser.FieldSet back = GDTParser.parse(s.fromXML(s.toXML(deviceSet())), false).get(0);
+        GDTParser.FieldSet original = GDTParser.parse(deviceSet(), false).get(0);
+        assertEquals(original.fields.size(), back.fields.size());
+        assertEquals(original.value("8316"), back.value("8316"));
+        assertEquals(original.value("8420"), back.value("8420"));
+        assertEquals("Excluded Time (m)", back.fields.get(5).value);
+        assertEquals("m", back.fields.get(7).value);
+    }
+
+    @Test
+    public void aTransformerCanNestFieldsInATestGroup() throws Exception {
+        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><test><F8410>SNORE</F8410><F8411>Snore Index</F8411><F8420>10,3</F8420></test><F8432>23101998</F8432></set></GDT>");
+
+        List<GDTParser.Field> fields = GDTParser.parse(gdt, true).get(0).fields;
+        assertEquals("8410", fields.get(2).id);
+        assertEquals("SNORE", fields.get(2).value);
+        assertEquals("8411", fields.get(3).id);
+        assertEquals("Snore Index", fields.get(3).value);
+        assertEquals("8420", fields.get(4).id);
+        assertEquals("10,3", fields.get(4).value);
+        assertEquals("8432", fields.get(5).id);
+    }
+
+    @Test
+    public void unexpectedElementInATestGroupIsRefused() {
+        assertFails(serializer(), false, "<GDT><set><test><PID>1</PID></test></set></GDT>", "in test");
+    }
+
+    @Test
+    public void vocabularyDescribesTheTestGroup() {
+        assertEquals("Test", new GDTVocabulary("2.1", "6310").getDescription("test"));
+    }
+
+    // ---- grouping open categories (6330/6331, ...), for example OrderID
+
+    private static final String[] ORDER_ID_TRANSFER = { "80006310", "6330OrderID", "6331356218126" };
+    private static final String[] MULTI_CATEGORY_TRANSFER = { "80006310", "6330OrderID", "6331356218126", "6332Ward", "6333Cardiology" };
+
+    private static GDTSerializationProperties groupCategoriesProperties() {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupCategories(true);
+        return p;
+    }
+
+    @Test
+    public void groupCategoriesIsOffByDefault() throws Exception {
+        Element root = xml(serializer().toXML(set(ORDER_ID_TRANSFER)));
+
+        assertEquals(0, root.getElementsByTagName("categories").getLength());
+        assertEquals("OrderID", child(root, "F6330", 0).getTextContent());
+        assertEquals("356218126", child(root, "F6331", 0).getTextContent());
+    }
+
+    @Test
+    public void groupCategoriesWrapsOneOpenCategory() throws Exception {
+        Element root = xml(serializer(groupCategoriesProperties()).toXML(set(ORDER_ID_TRANSFER)));
+
+        NodeList categoriesList = root.getElementsByTagName("categories");
+        assertEquals(1, categoriesList.getLength());
+        Element categories = (Element) categoriesList.item(0);
+        NodeList categoryList = categories.getElementsByTagName("category");
+        assertEquals(1, categoryList.getLength());
+        Element category = (Element) categoryList.item(0);
+        assertEquals("OrderID", category.getAttribute("name"));
+        assertEquals("356218126", category.getTextContent());
+        // no F6330/F6331 fields are left
+        assertEquals(0, root.getElementsByTagName("F6330").getLength());
+        assertEquals(0, root.getElementsByTagName("F6331").getLength());
+    }
+
+    @Test
+    public void groupCategoriesWrapsARunOfCategoriesInOneElement() throws Exception {
+        Element root = xml(serializer(groupCategoriesProperties()).toXML(set(MULTI_CATEGORY_TRANSFER)));
+
+        assertEquals(1, root.getElementsByTagName("categories").getLength());
+        NodeList categoryList = root.getElementsByTagName("category");
+        assertEquals(2, categoryList.getLength());
+        assertEquals("OrderID", ((Element) categoryList.item(0)).getAttribute("name"));
+        assertEquals("356218126", categoryList.item(0).getTextContent());
+        assertEquals("Ward", ((Element) categoryList.item(1)).getAttribute("name"));
+        assertEquals("Cardiology", categoryList.item(1).getTextContent());
+    }
+
+    @Test
+    public void groupCategoriesClosesOnAnUnrelatedFieldAndStartsAnewAfterIt() throws Exception {
+        String[] fields = { "80006310", "6330OrderID", "6331356218126", "3101Samplesmith", "6332Ward", "6333Cardiology" };
+        Element root = xml(serializer(groupCategoriesProperties()).toXML(set(fields)));
+
+        NodeList categoriesList = root.getElementsByTagName("categories");
+        assertEquals(2, categoriesList.getLength());
+        assertEquals("set", child(root, "F3101", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupCategoriesAcceptsANameWithoutItsContentField() throws Exception {
+        String[] fields = { "80006310", "6330OrderID", "3101Samplesmith" };
+        Element root = xml(serializer(groupCategoriesProperties()).toXML(set(fields)));
+
+        Element category = child(root, "category", 0);
+        assertEquals("OrderID", category.getAttribute("name"));
+        assertEquals("", category.getTextContent());
+        assertEquals("set", child(root, "F3101", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupCategoriesRoundTripKeepsTheNamesAndContent() throws Exception {
+        GDTSerializer s = serializer(groupCategoriesProperties());
+
+        GDTParser.FieldSet back = GDTParser.parse(s.fromXML(s.toXML(set(MULTI_CATEGORY_TRANSFER))), true).get(0);
+        assertEquals("OrderID", back.value("6330"));
+        assertEquals("356218126", back.value("6331"));
+        assertEquals("Ward", back.value("6332"));
+        assertEquals("Cardiology", back.value("6333"));
+    }
+
+    @Test
+    public void aTransformerCanNestFieldsInACategoriesGroup() throws Exception {
+        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><categories><category name=\"OrderID\">356218126</category></categories><F3101>Samplesmith</F3101></set></GDT>");
+
+        List<GDTParser.Field> fields = GDTParser.parse(gdt, true).get(0).fields;
+        assertEquals("6330", fields.get(2).id);
+        assertEquals("OrderID", fields.get(2).value);
+        assertEquals("6331", fields.get(3).id);
+        assertEquals("356218126", fields.get(3).value);
+        assertEquals("3101", fields.get(4).id);
+    }
+
+    @Test
+    public void tooManyCategoriesAreRefused() {
+        StringBuilder xml = new StringBuilder("<GDT><set><F8000>6310</F8000><categories>");
+        for (int i = 0; i < 36; i++) {
+            xml.append("<category name=\"c").append(i).append("\">v</category>");
+        }
+        xml.append("</categories></set></GDT>");
+
+        assertFails(serializer(), false, xml.toString(), "Too many categories");
+    }
+
+    @Test
+    public void categoryWithoutANameAttributeIsRefused() {
+        assertFails(serializer(), false, "<GDT><set><categories><category>x</category></categories></set></GDT>", "needs a name attribute");
+    }
+
+    @Test
+    public void unexpectedElementInACategoriesGroupIsRefused() {
+        assertFails(serializer(), false, "<GDT><set><categories><PID>1</PID></categories></set></GDT>", "in categories");
+    }
+
+    @Test
+    public void vocabularyDescribesCategoriesAndCategory() {
+        GDTVocabulary v = new GDTVocabulary("2.1", "6310");
+        assertEquals("Categories", v.getDescription("categories"));
+        assertEquals("Category", v.getDescription("category"));
     }
 
     @Test

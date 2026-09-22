@@ -33,7 +33,9 @@ const DEF = {
           ],
           "CRLF",
           "What ends a line when XML is converted to GDT. The specification asks for CRLF. When reading GDT, CRLF, LF and CR are all accepted."
-        )
+        ),
+        bool("groupTests", "Group Test Fields", false, "If checked, a repeated field 8410 (Test ID) and the fields 8411 (Test name), 8420 (Result value) and 8421 (Unit) that follow it are nested together in one <test> element, instead of being siblings of the set. A new 8410, or any other field, ends the group. Converting XML to GDT flattens <test> back into the same fields in the same order, so the GDT message does not change."),
+        bool("groupCategories", "Group Categories", false, "If checked, an open category (a field 6330, 6332, ..., 6398 with the category name, followed by 6331, 6333, ..., 6399 with its content, for example OrderID) becomes <category name=\"OrderID\">356218126</category> instead of the two F#### fields, and a run of them is wrapped in one <categories> element. Converting XML to GDT turns <categories> back into the same fields, numbered from 6330 again.")
       ]
     },
     {
