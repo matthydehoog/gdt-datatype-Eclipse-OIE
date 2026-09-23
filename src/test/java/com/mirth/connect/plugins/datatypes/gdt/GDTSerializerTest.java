@@ -476,6 +476,52 @@ public class GDTSerializerTest {
         assertEquals("Category", v.getDescription("category"));
     }
 
+    // ---- joining a field 8480 (Results text) split over several lines
+
+    /** As a device writes a long results text: split over two 8480 fields instead of using a four digit length. */
+    private static final String[] SPLIT_RESULTS_TEXT = { "80006310", "8480Neusflow signaal matig, analyse uitgevoerd op banden RIP sig", "8480naal." };
+
+    private static GDTSerializationProperties joinResultsTextProperties() {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setJoinResultsText(true);
+        return p;
+    }
+
+    @Test
+    public void joinResultsTextIsOffByDefault() throws Exception {
+        Element root = xml(serializer().toXML(set(SPLIT_RESULTS_TEXT)));
+
+        assertEquals(2, root.getElementsByTagName("F8480").getLength());
+    }
+
+    @Test
+    public void joinResultsTextJoinsConsecutiveFields() throws Exception {
+        Element root = xml(serializer(joinResultsTextProperties()).toXML(set(SPLIT_RESULTS_TEXT)));
+
+        NodeList fields = root.getElementsByTagName("F8480");
+        assertEquals(1, fields.getLength());
+        assertEquals("Neusflow signaal matig, analyse uitgevoerd op banden RIP signaal.", fields.item(0).getTextContent());
+    }
+
+    @Test
+    public void joinResultsTextDoesNotJoinAcrossAnotherField() throws Exception {
+        String[] fields = { "80006310", "8480First part", "3101Samplesmith", "8480Second part" };
+        Element root = xml(serializer(joinResultsTextProperties()).toXML(set(fields)));
+
+        NodeList text = root.getElementsByTagName("F8480");
+        assertEquals(2, text.getLength());
+        assertEquals("First part", text.item(0).getTextContent());
+        assertEquals("Second part", text.item(1).getTextContent());
+    }
+
+    @Test
+    public void joinResultsTextRoundTripGivesTheSameValue() throws Exception {
+        GDTSerializer s = serializer(joinResultsTextProperties());
+
+        GDTParser.FieldSet back = GDTParser.parse(s.fromXML(s.toXML(set(SPLIT_RESULTS_TEXT))), true).get(0);
+        assertEquals("Neusflow signaal matig, analyse uitgevoerd op banden RIP signaal.", back.value("8480"));
+    }
+
     @Test
     public void severalSetsBecomeSeveralElements() throws Exception {
         Element root = xml(serializer().toXML(set("80006310", "3101A") + set("80006301", "3101B")));

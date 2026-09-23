@@ -11,6 +11,7 @@ package com.mirth.connect.plugins.datatypes.gdt;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -74,6 +75,11 @@ import com.mirth.connect.plugins.datatypes.gdt.GDTParser.FieldSet;
  * A name field without the content field right behind it becomes an empty category. Converting the XML
  * back turns <code>categories</code> into fields numbered from 6330 again; which field had which number
  * in the original message is not kept, since the numbers do not mean anything by themselves.
+ *
+ * When {@code joinResultsText} is on, several field 8480 (Results text) in a row are joined into one:
+ * some devices split a long text over several lines of the same field instead of using the four digit
+ * length that a long line can have. Joining puts them back together, in the order they appear, with
+ * nothing between them (no field is split on a word or a sentence, so nothing needs to be added).
  */
 public class GDTReader extends AbstractXMLReader {
     public static final String ROOT = "GDT";
@@ -90,24 +96,12 @@ public class GDTReader extends AbstractXMLReader {
     static final int CATEGORY_FIRST_ID = 6330;
     static final int CATEGORY_LAST_ID = 6398;
 
-    private final boolean strict;
-    private final boolean fieldNames;
-    private final boolean groupResults;
-    private final boolean groupCategories;
+    private static final String RESULTS_TEXT_FIELD = "8480";
 
-    public GDTReader(boolean strict, boolean fieldNames) {
-        this(strict, fieldNames, false, false);
-    }
+    private final GDTSerializationProperties properties;
 
-    public GDTReader(boolean strict, boolean fieldNames, boolean groupResults) {
-        this(strict, fieldNames, groupResults, false);
-    }
-
-    public GDTReader(boolean strict, boolean fieldNames, boolean groupResults, boolean groupCategories) {
-        this.strict = strict;
-        this.fieldNames = fieldNames;
-        this.groupResults = groupResults;
-        this.groupCategories = groupCategories;
+    public GDTReader(GDTSerializationProperties properties) {
+        this.properties = properties;
     }
 
     @Override
@@ -124,7 +118,7 @@ public class GDTReader extends AbstractXMLReader {
 
         List<FieldSet> sets;
         try {
-            sets = GDTParser.parse(sb.toString(), strict);
+            sets = GDTParser.parse(sb.toString(), properties.isStrict());
         } catch (GDTParser.SyntaxException e) {
             throw new SAXException(e.getMessage(), e);
         }
@@ -141,7 +135,7 @@ public class GDTReader extends AbstractXMLReader {
             String type = set.type();
             if (type != null) {
                 attributes.addAttribute("", "type", "", "", clean(type.trim()));
-                String name = fieldNames ? GDTFields.setTypeName(type) : null;
+                String name = properties.isFieldNames() ? GDTFields.setTypeName(type) : null;
                 if (name != null) {
                     attributes.addAttribute("", "name", "", "", name);
                 }
@@ -153,21 +147,22 @@ public class GDTReader extends AbstractXMLReader {
             boolean inCategories = false;
             String awaitingCategoryContentId = null;
 
-            for (Field field : set.fields) {
+            List<Field> setFields = properties.isJoinResultsText() ? joinRepeated(set.fields, RESULTS_TEXT_FIELD) : set.fields;
+            for (Field field : setFields) {
                 String id = field.id;
 
-                boolean isCategoryContent = groupCategories && id.equals(awaitingCategoryContentId);
+                boolean isCategoryContent = properties.isGroupCategories() && id.equals(awaitingCategoryContentId);
                 if (awaitingCategoryContentId != null && !isCategoryContent) {
                     handler.endElement("", CATEGORY, "");
                     awaitingCategoryContentId = null;
                 }
-                boolean isCategoryName = groupCategories && isCategoryNameField(id);
+                boolean isCategoryName = properties.isGroupCategories() && isCategoryNameField(id);
                 if (inCategories && !isCategoryContent && !isCategoryName) {
                     handler.endElement("", CATEGORIES, "");
                     inCategories = false;
                 }
 
-                if (groupResults) {
+                if (properties.isGroupResults()) {
                     boolean startsResult = id.equals(RESULT_START_FIELD);
                     boolean continuesResult = inResult && RESULT_FIELDS.contains(id);
                     if (inResult && !startsResult && !continuesResult) {
@@ -234,7 +229,7 @@ public class GDTReader extends AbstractXMLReader {
     private void writeField(ContentHandler handler, Field field) throws SAXException {
         String elementName = "F" + field.id;
         AttributesImpl fieldAttributes = getEmptyAttributes();
-        String name = fieldNames ? GDTFields.fieldName(field.id) : null;
+        String name = properties.isFieldNames() ? GDTFields.fieldName(field.id) : null;
         if (name != null) {
             fieldAttributes.addAttribute("", "name", "", "", name);
         }
@@ -244,6 +239,20 @@ public class GDTReader extends AbstractXMLReader {
             handler.characters(value.toCharArray(), 0, value.length());
         }
         handler.endElement("", elementName, "");
+    }
+
+    /** Joins consecutive fields with the given id into one, in the order they appear; other fields are untouched. */
+    static List<Field> joinRepeated(List<Field> fields, String id) {
+        List<Field> joined = new ArrayList<Field>();
+        for (Field field : fields) {
+            int last = joined.size() - 1;
+            if (last >= 0 && joined.get(last).id.equals(id) && field.id.equals(id)) {
+                joined.set(last, new Field(id, joined.get(last).value + field.value));
+            } else {
+                joined.add(field);
+            }
+        }
+        return joined;
     }
 
     /** Whether a field number is a category name (6330, 6332, ..., 6398): its content follows right after. */

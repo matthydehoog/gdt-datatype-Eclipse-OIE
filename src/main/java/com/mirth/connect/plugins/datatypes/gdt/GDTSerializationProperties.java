@@ -48,6 +48,7 @@ public class GDTSerializationProperties extends SerializationProperties {
     private boolean strict = false;
     private boolean groupResults = false;
     private boolean groupCategories = false;
+    private boolean joinResultsText = false;
 
     public GDTSerializationProperties() {
 
@@ -60,6 +61,7 @@ public class GDTSerializationProperties extends SerializationProperties {
         this.strict = properties.isStrict();
         this.groupResults = properties.isGroupResults();
         this.groupCategories = properties.isGroupCategories();
+        this.joinResultsText = properties.isJoinResultsText();
     }
 
     @Override
@@ -72,6 +74,7 @@ public class GDTSerializationProperties extends SerializationProperties {
         properties.put("lineEnding", new DataTypePropertyDescriptor(getLineEnding(), "Line Ending", "What ends a line when XML is converted to GDT. The specification asks for CRLF. When reading GDT, CRLF, LF and CR are all accepted.", PropertyEditorType.OPTION, LineEnding.values()));
         properties.put("groupResults", new DataTypePropertyDescriptor(isGroupResults(), "Group Result Fields", "If checked, a repeated field 8410 (Test ID) and the fields 8411 (Test name), 8420 (Result value) and 8421 (Unit) that follow it are nested together in one <result> element, instead of being siblings of the set, and a run of them is wrapped in one <results> element. A new 8410 ends a <result> and starts the next one; any other field ends the whole <results> run. Converting XML to GDT flattens <results> back into the same fields in the same order, so the GDT message does not change.", PropertyEditorType.BOOLEAN));
         properties.put("groupCategories", new DataTypePropertyDescriptor(isGroupCategories(), "Group Categories", "If checked, an open category (a field 6330, 6332, ..., 6398 with the category name, followed by 6331, 6333, ..., 6399 with its content, for example OrderID) becomes <category name=\"OrderID\">356218126</category> instead of the two F#### fields, and a run of them is wrapped in one <categories> element. Converting XML to GDT turns <categories> back into the same fields, numbered from 6330 again.", PropertyEditorType.BOOLEAN));
+        properties.put("joinResultsText", new DataTypePropertyDescriptor(isJoinResultsText(), "Join Results Text", "If checked, several field 8480 (Results text) in a row are joined into one, in the order they appear, with nothing added between them. Some devices split a long text over several 8480 fields instead of using the four digit length that a long line can have.", PropertyEditorType.BOOLEAN));
 
         return properties;
     }
@@ -96,6 +99,9 @@ public class GDTSerializationProperties extends SerializationProperties {
             }
             if (properties.get("groupCategories") != null) {
                 this.groupCategories = (Boolean) properties.get("groupCategories");
+            }
+            if (properties.get("joinResultsText") != null) {
+                this.joinResultsText = (Boolean) properties.get("joinResultsText");
             }
         }
     }
@@ -148,6 +154,14 @@ public class GDTSerializationProperties extends SerializationProperties {
         this.groupCategories = groupCategories;
     }
 
+    public boolean isJoinResultsText() {
+        return joinResultsText;
+    }
+
+    public void setJoinResultsText(boolean joinResultsText) {
+        this.joinResultsText = joinResultsText;
+    }
+
     // @formatter:off
     @Override public void migrate3_0_1(DonkeyElement element) {}
     @Override public void migrate3_0_2(DonkeyElement element) {}
@@ -173,6 +187,7 @@ public class GDTSerializationProperties extends SerializationProperties {
         purgedProperties.put("lineEnding", getLineEnding());
         purgedProperties.put("groupResults", isGroupResults());
         purgedProperties.put("groupCategories", isGroupCategories());
+        purgedProperties.put("joinResultsText", isJoinResultsText());
         return purgedProperties;
     }
 }
