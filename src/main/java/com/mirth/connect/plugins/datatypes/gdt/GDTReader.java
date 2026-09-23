@@ -40,21 +40,25 @@ import com.mirth.connect.plugins.datatypes.gdt.GDTParser.FieldSet;
  * The line and set lengths are not in the XML; they are calculated again when the XML is turned into GDT.
  * Fields that occur more than once (6228, 8410, ...) stay in the order of the message.
  *
- * When {@code groupTests} is on, a field 8410 (Test ID) and the 8411 (Test name), 8420 (Result value) and
- * 8421 (Unit) that follow it are nested in one <code>test</code> element instead of being siblings of the
- * set, since a GDT message can hold many of these one after another (one per measured value):
+ * When {@code groupResults} is on, a field 8410 (Test ID) and the 8411 (Test name), 8420 (Result value) and
+ * 8421 (Unit) that follow it are nested in one <code>result</code> element instead of being siblings of the
+ * set, since a GDT message can hold many of these one after another (one per measured value), and a run of
+ * them is wrapped in one <code>results</code> element:
  *
  * <pre>
- * &lt;test&gt;
- *   &lt;F8410 name="Test ID"&gt;SYSMXTG&lt;/F8410&gt;
- *   &lt;F8411 name="Test name"&gt;Systole max day phase&lt;/F8411&gt;
- *   &lt;F8420 name="Result value"&gt;142&lt;/F8420&gt;
- *   &lt;F8421 name="Unit"&gt;mmHg&lt;/F8421&gt;
- * &lt;/test&gt;
+ * &lt;results&gt;
+ *   &lt;result&gt;
+ *     &lt;F8410 name="Test ID"&gt;SYSMXTG&lt;/F8410&gt;
+ *     &lt;F8411 name="Test name"&gt;Systole max day phase&lt;/F8411&gt;
+ *     &lt;F8420 name="Result value"&gt;142&lt;/F8420&gt;
+ *     &lt;F8421 name="Unit"&gt;mmHg&lt;/F8421&gt;
+ *   &lt;/result&gt;
+ * &lt;/results&gt;
  * </pre>
  *
- * A new 8410, or any field that is not one of these four, ends the group. This does not change the GDT
- * message: converting the XML back flattens <code>test</code> into the same fields in the same order.
+ * A new 8410 ends a <code>result</code> and starts the next one; any other field ends the whole
+ * <code>results</code> run. This does not change the GDT message: converting the XML back flattens
+ * <code>results</code> into the same fields in the same order.
  *
  * When {@code groupCategories} is on, an open category (a field 6330, 6332, ..., 6398 with the category's
  * name, followed right away by 6331, 6333, ..., 6399 with its content) becomes a <code>category</code>
@@ -74,12 +78,13 @@ import com.mirth.connect.plugins.datatypes.gdt.GDTParser.FieldSet;
 public class GDTReader extends AbstractXMLReader {
     public static final String ROOT = "GDT";
     public static final String SET = "set";
-    public static final String GROUP = "test";
+    public static final String RESULTS = "results";
+    public static final String RESULT = "result";
     public static final String CATEGORIES = "categories";
     public static final String CATEGORY = "category";
 
-    private static final String GROUP_START_FIELD = "8410";
-    private static final Set<String> GROUP_FIELDS = new HashSet<String>(Arrays.asList("8411", "8420", "8421"));
+    private static final String RESULT_START_FIELD = "8410";
+    private static final Set<String> RESULT_FIELDS = new HashSet<String>(Arrays.asList("8411", "8420", "8421"));
 
     /** The category name fields are the even numbers from 6330 to 6398; the content field follows right after. */
     static final int CATEGORY_FIRST_ID = 6330;
@@ -87,21 +92,21 @@ public class GDTReader extends AbstractXMLReader {
 
     private final boolean strict;
     private final boolean fieldNames;
-    private final boolean groupTests;
+    private final boolean groupResults;
     private final boolean groupCategories;
 
     public GDTReader(boolean strict, boolean fieldNames) {
         this(strict, fieldNames, false, false);
     }
 
-    public GDTReader(boolean strict, boolean fieldNames, boolean groupTests) {
-        this(strict, fieldNames, groupTests, false);
+    public GDTReader(boolean strict, boolean fieldNames, boolean groupResults) {
+        this(strict, fieldNames, groupResults, false);
     }
 
-    public GDTReader(boolean strict, boolean fieldNames, boolean groupTests, boolean groupCategories) {
+    public GDTReader(boolean strict, boolean fieldNames, boolean groupResults, boolean groupCategories) {
         this.strict = strict;
         this.fieldNames = fieldNames;
-        this.groupTests = groupTests;
+        this.groupResults = groupResults;
         this.groupCategories = groupCategories;
     }
 
@@ -143,7 +148,8 @@ public class GDTReader extends AbstractXMLReader {
             }
             handler.startElement("", SET, "", attributes);
 
-            boolean inGroup = false;
+            boolean inResults = false;
+            boolean inResult = false;
             boolean inCategories = false;
             String awaitingCategoryContentId = null;
 
@@ -161,19 +167,27 @@ public class GDTReader extends AbstractXMLReader {
                     inCategories = false;
                 }
 
-                if (groupTests) {
-                    boolean startsGroup = id.equals(GROUP_START_FIELD);
-                    boolean continuesGroup = inGroup && GROUP_FIELDS.contains(id);
-                    if (inGroup && !startsGroup && !continuesGroup) {
-                        handler.endElement("", GROUP, "");
-                        inGroup = false;
+                if (groupResults) {
+                    boolean startsResult = id.equals(RESULT_START_FIELD);
+                    boolean continuesResult = inResult && RESULT_FIELDS.contains(id);
+                    if (inResult && !startsResult && !continuesResult) {
+                        handler.endElement("", RESULT, "");
+                        inResult = false;
                     }
-                    if (startsGroup) {
-                        if (inGroup) {
-                            handler.endElement("", GROUP, "");
+                    if (inResults && !startsResult && !continuesResult) {
+                        handler.endElement("", RESULTS, "");
+                        inResults = false;
+                    }
+                    if (startsResult) {
+                        if (inResult) {
+                            handler.endElement("", RESULT, "");
                         }
-                        handler.startElement("", GROUP, "", getEmptyAttributes());
-                        inGroup = true;
+                        if (!inResults) {
+                            handler.startElement("", RESULTS, "", getEmptyAttributes());
+                            inResults = true;
+                        }
+                        handler.startElement("", RESULT, "", getEmptyAttributes());
+                        inResult = true;
                     }
                 }
 
@@ -203,8 +217,11 @@ public class GDTReader extends AbstractXMLReader {
             if (inCategories) {
                 handler.endElement("", CATEGORIES, "");
             }
-            if (inGroup) {
-                handler.endElement("", GROUP, "");
+            if (inResult) {
+                handler.endElement("", RESULT, "");
+            }
+            if (inResults) {
+                handler.endElement("", RESULTS, "");
             }
 
             handler.endElement("", SET, "");

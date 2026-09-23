@@ -31,8 +31,9 @@ import com.mirth.connect.plugins.datatypes.gdt.GDTParser.Field;
  * has more than five digits. They are counted in characters, which are bytes in the single byte character sets
  * that GDT uses.
  *
- * A set can also hold {@link GDTReader#GROUP} elements (when {@code groupTests} produced them): their F####
- * children are read as fields of the set, in the order they appear, exactly as if they had not been nested.
+ * A set can also hold {@link GDTReader#RESULTS} elements (when {@code groupResults} produced them): each
+ * {@link GDTReader#RESULT} child's F#### grandchildren are read as fields of the set, in the order they
+ * appear, exactly as if they had not been nested.
  *
  * A set can also hold {@link GDTReader#CATEGORIES} elements (when {@code groupCategories} produced them):
  * each {@link GDTReader#CATEGORY} child becomes two fields, the category's name (its {@code name} attribute)
@@ -49,7 +50,8 @@ public class GDTXMLHandler extends DefaultHandler {
 
     private int depth = 0;
     private List<Field> fields;
-    private boolean inGroup;
+    private boolean inResults;
+    private boolean inResult;
     private boolean inCategories;
     private int nextCategoryId;
     private String fieldId;
@@ -71,15 +73,18 @@ public class GDTXMLHandler extends DefaultHandler {
             fields = new ArrayList<Field>();
             nextCategoryId = GDTReader.CATEGORY_FIRST_ID;
         } else if (depth == 3) {
-            inGroup = name.equals(GDTReader.GROUP);
+            inResults = name.equals(GDTReader.RESULTS);
             inCategories = name.equals(GDTReader.CATEGORIES);
-            if (!inGroup && !inCategories) {
+            inResult = false;
+            if (!inResults && !inCategories) {
                 fieldId = matchFieldName(name, "in a set");
                 text.setLength(0);
             }
-        } else if (depth == 4 && inGroup) {
-            fieldId = matchFieldName(name, "in " + GDTReader.GROUP);
-            text.setLength(0);
+        } else if (depth == 4 && inResults) {
+            if (!name.equals(GDTReader.RESULT)) {
+                throw new SAXException("Unexpected element " + name + " in " + GDTReader.RESULTS + ": a result is an element named " + GDTReader.RESULT);
+            }
+            inResult = true;
         } else if (depth == 4 && inCategories) {
             if (!name.equals(GDTReader.CATEGORY)) {
                 throw new SAXException("Unexpected element " + name + " in " + GDTReader.CATEGORIES + ": a category is an element named " + GDTReader.CATEGORY);
@@ -89,8 +94,11 @@ public class GDTXMLHandler extends DefaultHandler {
                 throw new SAXException("A " + GDTReader.CATEGORY + " needs a name attribute");
             }
             text.setLength(0);
+        } else if (depth == 5 && inResult) {
+            fieldId = matchFieldName(name, "in " + GDTReader.RESULT);
+            text.setLength(0);
         } else if (depth > 3) {
-            String label = inCategories ? "Category " + categoryName : "Field F" + fieldId;
+            String label = inCategories && depth == 5 ? "Category " + categoryName : "Field F" + fieldId;
             throw new SAXException(label + " can only contain text, not the element " + name);
         }
     }
@@ -104,7 +112,7 @@ public class GDTXMLHandler extends DefaultHandler {
     }
 
     private boolean atField() {
-        return (depth == 3 && !inGroup && !inCategories) || (depth == 4 && inGroup);
+        return (depth == 3 && !inResults && !inCategories) || (depth == 5 && inResult);
     }
 
     private boolean atCategory() {
@@ -129,8 +137,10 @@ public class GDTXMLHandler extends DefaultHandler {
             fields.add(new Field(String.format("%04d", nextCategoryId), categoryName));
             fields.add(new Field(String.format("%04d", nextCategoryId + 1), normalizedText()));
             nextCategoryId += 2;
-        } else if (depth == 3 && inGroup) {
-            inGroup = false;
+        } else if (depth == 4 && inResults) {
+            inResult = false;
+        } else if (depth == 3 && inResults) {
+            inResults = false;
         } else if (depth == 3 && inCategories) {
             inCategories = false;
         } else if (depth == 2) {

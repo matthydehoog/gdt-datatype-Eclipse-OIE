@@ -26,8 +26,11 @@ public class GDTVocabulary extends MessageVocabulary {
         if (elementId.equals(GDTReader.SET)) {
             return "Set";
         }
-        if (elementId.equals(GDTReader.GROUP)) {
-            return "Test";
+        if (elementId.equals(GDTReader.RESULTS)) {
+            return "Results";
+        }
+        if (elementId.equals(GDTReader.RESULT)) {
+            return "Result";
         }
         if (elementId.equals(GDTReader.CATEGORIES)) {
             return "Categories";

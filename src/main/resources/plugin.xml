@@ -1,7 +1,7 @@
 <pluginMetaData path="datatype-gdt">
 	<name>GDT Data Type</name>
 	<author>X Connections</author>
-	<pluginVersion>1.0.3</pluginVersion>
+	<pluginVersion>1.0.4</pluginVersion>
 	<mirthVersion>4.6.0</mirthVersion>
 	<url>https://x-connections.info</url>
 	<description>This plugin provides support for the GDT data type (Geraete-Daten-Traeger, the QMS interface between medical devices and practice systems: sets of lines with a length, a field number and a value).</description>

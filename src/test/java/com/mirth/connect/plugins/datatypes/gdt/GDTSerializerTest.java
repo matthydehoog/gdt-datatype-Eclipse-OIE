@@ -217,77 +217,93 @@ public class GDTSerializerTest {
         assertEquals("result of 24h-blood pressure test", results.item(1).getTextContent());
     }
 
-    // ---- grouping the 8410/8411/8420/8421 fields of one test
+    // ---- grouping the 8410/8411/8420/8421 fields of one result, under one results element
+
+    private static GDTSerializationProperties groupResultsProperties() {
+        GDTSerializationProperties p = new GDTSerializationProperties();
+        p.setGroupResults(true);
+        return p;
+    }
 
     @Test
-    public void groupTestsIsOffByDefault() throws Exception {
+    public void groupResultsIsOffByDefault() throws Exception {
         Element root = xml(serializer().toXML(set(TEST_DATA_TRANSFER)));
 
-        assertEquals(0, root.getElementsByTagName("test").getLength());
+        assertEquals(0, root.getElementsByTagName("results").getLength());
+        assertEquals(0, root.getElementsByTagName("result").getLength());
         assertEquals("set", child(root, "F8410", 0).getParentNode().getNodeName());
     }
 
     @Test
-    public void groupTestsNestsTheFieldsOfOneTest() throws Exception {
-        GDTSerializationProperties p = new GDTSerializationProperties();
-        p.setGroupTests(true);
-        Element root = xml(serializer(p).toXML(set(TEST_DATA_TRANSFER)));
+    public void groupResultsNestsTheFieldsOfOneResult() throws Exception {
+        Element root = xml(serializer(groupResultsProperties()).toXML(set(TEST_DATA_TRANSFER)));
 
-        NodeList tests = root.getElementsByTagName("test");
-        assertEquals(1, tests.getLength());
-        Element test = (Element) tests.item(0);
-        assertEquals("SYSMXTG", child(test, "F8410", 0).getTextContent());
-        assertEquals("Systole max day phase", child(test, "F8411", 0).getTextContent());
-        assertEquals("142", child(test, "F8420", 0).getTextContent());
-        assertEquals("mmHg", child(test, "F8421", 0).getTextContent());
-        // 8432 and 8439 are not part of the test: they end the group
+        NodeList resultsList = root.getElementsByTagName("results");
+        assertEquals(1, resultsList.getLength());
+        Element results = (Element) resultsList.item(0);
+        NodeList resultList = results.getElementsByTagName("result");
+        assertEquals(1, resultList.getLength());
+        Element result = (Element) resultList.item(0);
+        assertEquals("SYSMXTG", child(result, "F8410", 0).getTextContent());
+        assertEquals("Systole max day phase", child(result, "F8411", 0).getTextContent());
+        assertEquals("142", child(result, "F8420", 0).getTextContent());
+        assertEquals("mmHg", child(result, "F8421", 0).getTextContent());
+        // 8432 and 8439 are not part of the result: they end the results run
         assertEquals("set", child(root, "F8432", 0).getParentNode().getNodeName());
         assertEquals("set", child(root, "F8439", 0).getParentNode().getNodeName());
     }
 
     @Test
-    public void groupTestsMakesOneGroupPerRepeatedTestId() throws Exception {
-        GDTSerializationProperties p = new GDTSerializationProperties();
-        p.setGroupTests(true);
-        Element root = xml(serializer(p).toXML(set(MULTI_TEST_TRANSFER)));
+    public void groupResultsWrapsARunOfResultsInOneElement() throws Exception {
+        Element root = xml(serializer(groupResultsProperties()).toXML(set(MULTI_TEST_TRANSFER)));
 
-        NodeList tests = root.getElementsByTagName("test");
-        assertEquals(2, tests.getLength());
-        Element height = (Element) tests.item(0);
+        assertEquals(1, root.getElementsByTagName("results").getLength());
+        NodeList resultList = root.getElementsByTagName("result");
+        assertEquals(2, resultList.getLength());
+        Element height = (Element) resultList.item(0);
         assertEquals("Height", child(height, "F8410", 0).getTextContent());
         assertEquals("Height", child(height, "F8411", 0).getTextContent());
         assertEquals("180,0", child(height, "F8420", 0).getTextContent());
-        Element snoreIndex = (Element) tests.item(1);
+        Element snoreIndex = (Element) resultList.item(1);
         assertEquals("Snore Index", child(snoreIndex, "F8410", 0).getTextContent());
         assertEquals("Snore Index", child(snoreIndex, "F8411", 0).getTextContent());
         assertEquals("10,3", child(snoreIndex, "F8420", 0).getTextContent());
     }
 
     @Test
-    public void groupTestsHandlesARealDeviceSet() throws Exception {
-        GDTSerializationProperties p = new GDTSerializationProperties();
-        p.setGroupTests(true);
-        Element root = xml(serializer(p).toXML(deviceSet()));
+    public void groupResultsClosesTheRunOnAnUnrelatedFieldAndStartsAnewAfterIt() throws Exception {
+        String[] fields = { "80006310", "8410Height", "8411Height", "8420180,0", "3101Samplesmith", "8410Weight", "8411Weight", "842078,0" };
+        Element root = xml(serializer(groupResultsProperties()).toXML(set(fields)));
 
-        NodeList tests = root.getElementsByTagName("test");
-        assertEquals(2, tests.getLength());
-        Element analysisCriteria = (Element) tests.item(0);
+        NodeList resultsList = root.getElementsByTagName("results");
+        assertEquals(2, resultsList.getLength());
+        assertEquals(1, ((Element) resultsList.item(0)).getElementsByTagName("result").getLength());
+        assertEquals(1, ((Element) resultsList.item(1)).getElementsByTagName("result").getLength());
+        assertEquals("set", child(root, "F3101", 0).getParentNode().getNodeName());
+    }
+
+    @Test
+    public void groupResultsHandlesARealDeviceSet() throws Exception {
+        Element root = xml(serializer(groupResultsProperties()).toXML(deviceSet()));
+
+        assertEquals(1, root.getElementsByTagName("results").getLength());
+        NodeList resultList = root.getElementsByTagName("result");
+        assertEquals(2, resultList.getLength());
+        Element analysisCriteria = (Element) resultList.item(0);
         assertEquals("Analysis Criteria", child(analysisCriteria, "F8410", 0).getTextContent());
         assertEquals(10, child(analysisCriteria, "F8420", 0).getTextContent().split("\n").length);
         assertEquals(0, analysisCriteria.getElementsByTagName("F8411").getLength());
-        Element excludedTime = (Element) tests.item(1);
+        Element excludedTime = (Element) resultList.item(1);
         assertEquals("Excluded Time (m)", child(excludedTime, "F8410", 0).getTextContent());
         assertEquals("0,0", child(excludedTime, "F8420", 0).getTextContent());
         assertEquals("m", child(excludedTime, "F8421", 0).getTextContent());
-        // 8316, before the first test, is not part of any group
+        // 8316, before the first result, is not part of any group
         assertEquals("set", child(root, "F8316", 0).getParentNode().getNodeName());
     }
 
     @Test
-    public void groupTestsRoundTripGivesTheSameMessage() throws Exception {
-        GDTSerializationProperties p = new GDTSerializationProperties();
-        p.setGroupTests(true);
-        GDTSerializer s = serializer(p);
+    public void groupResultsRoundTripGivesTheSameMessage() throws Exception {
+        GDTSerializer s = serializer(groupResultsProperties());
 
         assertEquals(set(TEST_DATA_TRANSFER), s.fromXML(s.toXML(set(TEST_DATA_TRANSFER))));
         assertEquals(set(MULTI_TEST_TRANSFER), s.fromXML(s.toXML(set(MULTI_TEST_TRANSFER))));
@@ -304,8 +320,8 @@ public class GDTSerializerTest {
     }
 
     @Test
-    public void aTransformerCanNestFieldsInATestGroup() throws Exception {
-        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><test><F8410>SNORE</F8410><F8411>Snore Index</F8411><F8420>10,3</F8420></test><F8432>23101998</F8432></set></GDT>");
+    public void aTransformerCanNestFieldsInAResultsGroup() throws Exception {
+        String gdt = serializer().fromXML("<GDT><set><F8000>6310</F8000><results><result><F8410>SNORE</F8410><F8411>Snore Index</F8411><F8420>10,3</F8420></result><result><F8410>Height</F8410><F8420>180,0</F8420></result></results><F8432>23101998</F8432></set></GDT>");
 
         List<GDTParser.Field> fields = GDTParser.parse(gdt, true).get(0).fields;
         assertEquals("8410", fields.get(2).id);
@@ -314,17 +330,28 @@ public class GDTSerializerTest {
         assertEquals("Snore Index", fields.get(3).value);
         assertEquals("8420", fields.get(4).id);
         assertEquals("10,3", fields.get(4).value);
-        assertEquals("8432", fields.get(5).id);
+        assertEquals("8410", fields.get(5).id);
+        assertEquals("Height", fields.get(5).value);
+        assertEquals("8420", fields.get(6).id);
+        assertEquals("180,0", fields.get(6).value);
+        assertEquals("8432", fields.get(7).id);
     }
 
     @Test
-    public void unexpectedElementInATestGroupIsRefused() {
-        assertFails(serializer(), false, "<GDT><set><test><PID>1</PID></test></set></GDT>", "in test");
+    public void unexpectedElementInAResultsGroupIsRefused() {
+        assertFails(serializer(), false, "<GDT><set><results><PID>1</PID></results></set></GDT>", "in results");
     }
 
     @Test
-    public void vocabularyDescribesTheTestGroup() {
-        assertEquals("Test", new GDTVocabulary("2.1", "6310").getDescription("test"));
+    public void unexpectedElementInAResultIsRefused() {
+        assertFails(serializer(), false, "<GDT><set><results><result><PID>1</PID></result></results></set></GDT>", "in result");
+    }
+
+    @Test
+    public void vocabularyDescribesResultsAndResult() {
+        GDTVocabulary v = new GDTVocabulary("2.1", "6310");
+        assertEquals("Results", v.getDescription("results"));
+        assertEquals("Result", v.getDescription("result"));
     }
 
     // ---- grouping open categories (6330/6331, ...), for example OrderID

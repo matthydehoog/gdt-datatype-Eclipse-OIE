@@ -85,7 +85,7 @@ public class GDTSerializer implements IMessageSerializer {
     @Override
     public String toXML(String source) throws MessageSerializerException {
         try {
-            GDTReader reader = new GDTReader(serializationProperties.isStrict(), serializationProperties.isFieldNames(), serializationProperties.isGroupTests(), serializationProperties.isGroupCategories());
+            GDTReader reader = new GDTReader(serializationProperties.isStrict(), serializationProperties.isFieldNames(), serializationProperties.isGroupResults(), serializationProperties.isGroupCategories());
             StringWriter stringWriter = new StringWriter();
             XMLPrettyPrinter serializer = new XMLPrettyPrinter(stringWriter);
             serializer.setEncodeEntities(true);
