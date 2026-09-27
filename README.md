@@ -1,5 +1,7 @@
 # GDT Data Type for Eclipse OIE
 
+[![Build](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml/badge.svg)](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml)
+
 A **GDT data type** for [Eclipse Open Integration Engine](https://openintegrationengine.org/) (tested against **4.6.0**), modelled on the built-in *EDI / X12* data type. GDT (*Geräte-Daten-Träger*, "device data carrier") is the interface of the QMS (Qualitätsring Medizinische Software) between medical measuring devices (ECG, spirometer, blood pressure monitor, ...) and the computer system of a practice. Once installed, "GDT" shows up next to HL7 v2.x, EDI / X12 and the other data types in the Swing client and the web administrator.
 
 > Community extension. It is not part of, or endorsed by, the Eclipse OIE project, nor by the QMS.
@@ -160,6 +162,22 @@ Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 
    ├── datatype-gdt-client.jar     (Swing plugin)
    └── webadmin/                   (web administrator panel: plugin.json + web/plugin.js)
    ```
+
+### On GitHub
+
+Every push and pull request is built and tested by [GitHub Actions](.github/workflows/build.yml). The engine jars are taken from the [engine's own release](https://github.com/OpenIntegrationEngine/engine/releases) (checked against its published SHA-256) and cached; the zip of each build is kept as an artifact.
+
+### Releasing
+
+1. Set the new version in all four places: `pom.xml`, `src/main/resources/plugin.xml` (`pluginVersion`), `oie.json` and `webadmin/plugin.json`. The build fails when they differ.
+2. Commit, then tag and push the tag:
+
+   ```bash
+   git tag v1.0.6
+   git push origin v1.0.6
+   ```
+
+The workflow builds the tag and creates the GitHub release with the zip and its SHA-256. To write the release notes yourself, create the release on GitHub first (without a zip); the workflow then only adds the zip and the checksum.
 
 ## Design notes (for developers)
 
