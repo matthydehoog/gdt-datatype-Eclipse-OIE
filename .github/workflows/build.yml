@@ -59,3 +59,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/release.sh "${{ github.ref_name }}"
+
+  # Releases created above with GITHUB_TOKEN do not fire `release`, so call the catalog workflow here.
+  catalog:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/catalog-pr.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      CATALOG_TOKEN: ${{ secrets.CATALOG_TOKEN }}
