@@ -72,7 +72,37 @@ The example files in [examples](examples) are the real output of the plugin.
 | Field Names | Add the name of each field as an attribute in the XML | on |
 | Calculate Set Length | Calculate `8100` when XML is written as GDT, and add it behind `8000` when missing. Off: write it as it is in the XML | on |
 | Line Ending | What ends a line when XML is written as GDT: CRLF, LF or CR. The specification asks for CRLF | CRLF |
+| Group Result Fields | Nest a field `8410` (Test ID) and the `8411`, `8420` and `8421` that follow it in one `<result>` element, and a run of them in one `<results>` element (see [Grouping](#grouping)) | off |
+| Group Categories | Turn an open category (a name field `6330`, `6332`, ... followed by its content field `6331`, `6333`, ...) into `<category name="...">content</category>`, and a run of them into one `<categories>` element | off |
+| Join Results Text | Join several field `8480` (Results text) in a row into one. Some devices split a long text over several `8480` fields instead of using a four digit length | off |
 | Split Batch By (Batch) | *Set*: every set is one message. *JavaScript*: your own splitter. Only used when *Process Batch Files* is on in the connector | Set |
+
+### Grouping
+
+The three grouping settings only change the XML, not the GDT: when the XML is written as GDT again, the groups become the same fields in the same order. With *Group Result Fields* on:
+
+```xml
+<results>
+  <result>
+    <F8410 name="Test ID">SYSMXTG</F8410>
+    <F8411 name="Test name">Systole max day phase</F8411>
+    <F8420 name="Result value">142</F8420>
+    <F8421 name="Unit">mmHg</F8421>
+  </result>
+</results>
+```
+
+A new `8410` starts the next `result`; any other field ends the `results` run. With *Group Categories* on:
+
+```xml
+<categories>
+  <category name="OrderID">356218126</category>
+</categories>
+```
+
+When written as GDT, the categories are numbered from `6330` again, in the order they appear. *Join Results Text* joins the fields with nothing between them; written as GDT, the text becomes one field (with a four digit length when it is long).
+
+### Lengths
 
 The length of every line is always calculated, and it counts a CR LF whichever line ending is written, as the specification does. A line break inside a value counts as CR LF as well. Lengths are counted in characters, which are bytes in the single byte character sets that GDT uses.
 
@@ -180,6 +210,8 @@ Every push and pull request is built and tested by [GitHub Actions](.github/work
 The workflow builds the tag and creates the GitHub release with the zip and its SHA-256. To write the release notes yourself, create the release on GitHub first (without a zip); the workflow then only adds the zip and the checksum.
 
 ## Design notes (for developers)
+
+The [development guide](docs/development.md) covers building, the parser and the XML conversion, testing, the CI and releasing in detail. In short:
 
 - **Package name.** The classes live in `com.mirth.connect.plugins.datatypes.gdt`. The engine's XStream allow-list only accepts classes from the `com.mirth.connect.*` family when it reads a channel.
 - **Folder name = `path`.** The `path` attribute in `plugin.xml` (`datatype-gdt`) must equal the extension folder name.
