@@ -13,7 +13,7 @@ A **GDT data type** for [Eclipse Open Integration Engine](https://openintegratio
 - **Line lengths are calculated for you** when XML is written as GDT, and so is field `8100` (the length of the set). A transformer can build a set from scratch without counting characters.
 - **Lenient by default.** Real devices do more than the specification allows (see [What real devices write](#what-real-devices-write)): wrong lengths, values of several lines, four digit lengths, a set length of six digits. All of that is read. *Strict Parsing* rejects it.
 - **Metadata** for the message list and searches: source = sender GDT-ID (`8316`), type = set type (`8000`, e.g. `6310`), version = GDT version (`9218`).
-- **Message tree descriptions** with the names of the fields of the specification.
+- **Message tree descriptions** with the names of the fields of the specification. The Swing client shows them; the web administrator does too from Web Support 1.1.0.
 - **Batch** processing: a file with several sets can be split into one message per set.
 
 ## Install
@@ -203,8 +203,8 @@ Every push and pull request is built and tested by [GitHub Actions](.github/work
 2. Commit, then tag and push the tag:
 
    ```bash
-   git tag v1.0.6
-   git push origin v1.0.6
+   git tag v1.0.7
+   git push origin v1.0.7
    ```
 
 The workflow builds the tag and creates the GitHub release with the zip and its SHA-256. To write the release notes yourself, create the release on GitHub first (without a zip); the workflow then only adds the zip and the checksum.

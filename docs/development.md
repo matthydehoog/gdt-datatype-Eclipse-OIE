@@ -228,7 +228,7 @@ Channels are stored with XStream, which **does not run constructors**. A propert
 
 ## The web administrator
 
-`webadmin/plugin.json` registers the panel; `webadmin/web/plugin.js` describes the fields of both property groups (serialization and batch) with their keys, defaults and tooltips, and builds the default property objects. It is a static copy of `getPropertyDescriptors()`, so keep both in sync by hand. After installing a new version, a hard refresh (Ctrl+F5) loads the new panel.
+`webadmin/plugin.json` registers the panel and declares `GDTVocabulary` for the message tree (`vocabularies`, read by Web Support 1.1.0 and later; the class must stay in the shared jar with its `(String version, String type)` constructor, and `getDataType()` must return `GDT`); `webadmin/web/plugin.js` describes the fields of both property groups (serialization and batch) with their keys, defaults and tooltips, and builds the default property objects. It is a static copy of `getPropertyDescriptors()`, so keep both in sync by hand. After installing a new version, a hard refresh (Ctrl+F5) loads the new panel.
 
 ## Testing
 
