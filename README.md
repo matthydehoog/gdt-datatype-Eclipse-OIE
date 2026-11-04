@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml/badge.svg)](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml)
 
-A **GDT data type** for [Eclipse Open Integration Engine](https://openintegrationengine.org/) (tested against **4.6.0**), modelled on the built-in *EDI / X12* data type. GDT (*Geräte-Daten-Träger*, "device data carrier") is the interface of the QMS (Qualitätsring Medizinische Software) between medical measuring devices (ECG, spirometer, blood pressure monitor, ...) and the computer system of a practice. Once installed, "GDT" shows up next to HL7 v2.x, EDI / X12 and the other data types in the Swing client and the web administrator.
+A **GDT data type** for [Eclipse Open Integration Engine](https://openintegrationengine.org/) (tested against **4.6.0** and **4.7.0**), modelled on the built-in *EDI / X12* data type. GDT (*Geräte-Daten-Träger*, "device data carrier") is the interface of the QMS (Qualitätsring Medizinische Software) between medical measuring devices (ECG, spirometer, blood pressure monitor, ...) and the computer system of a practice. Once installed, "GDT" shows up next to HL7 v2.x, EDI / X12 and the other data types in the Swing client and the web administrator.
 
 > Community extension. It is not part of, or endorsed by, the Eclipse OIE project, nor by the QMS.
 
