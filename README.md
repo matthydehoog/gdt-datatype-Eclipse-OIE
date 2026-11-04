@@ -163,6 +163,35 @@ Which set answers which:
 | 6310 | device -> practice system | Test data transfer (the results) |
 | 6311 | practice system -> device | Test data display |
 
+## Without the plugin: gdtToXml in JavaScript
+
+Where the extension cannot be installed, [javascript/gdtToXml.js](javascript/gdtToXml.js) reads GDT in a transformer with plain JavaScript and gives the same XML as the data type with *Field Names* off. Add the function as a code template (in a library that is enabled for the channel), set the inbound data type of the source connector to **Raw**, and start the first transformer step with:
+
+```javascript
+msg = gdtToXml(msg);
+```
+
+From there the scripts are the same as with the data type, for example `msg['set']['F3000']` or `msg['set']['categories']['category'].(@name == 'OrderID')`. The grouping settings are options, given as a second argument; each one you leave out is **on**:
+
+```javascript
+msg = gdtToXml(msg, {
+    groupResults: true,     // Group Result Fields
+    groupCategories: true,  // Group Categories
+    joinResultsText: false  // Join Results Text
+});
+```
+
+It reads GDT the way the data type does when *Strict Parsing* is off: values of several lines, wrong line lengths, fields before the first `8000`, a byte order mark and an end-of-file mark. The XML was compared with the data type's for all eight combinations of the options, on the [examples](examples), three files of a Noxturnal NOX T3 and files made for the edge cases: it is the same.
+
+What it does not do:
+
+- Write GDT. Reading only.
+- *Strict Parsing* and *Field Names*.
+- Use the field table for four digit lengths. A line of 998 characters or more is read with a four digit length; the data type also checks which reading gives a known field, so only a long line with a wrong length can come out differently.
+- Decode the bytes: as with the data type, set the encoding of the File Reader to match field `9206` (Noxturnal writes `2`, so `IBM437`).
+
+In Rhino, `appendChild` adds a copy of an element, so the function always goes on with the child that is in the document. Keep that in mind when changing it.
+
 ## Character sets
 
 Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 (the default of the specification), `3` = ISO 8859-1 (ANSI, code page 1252). The data type does not decode the bytes; the **connector** does. Set the encoding of the File Reader (and the File Writer) to match, for example `IBM437` or `ISO-8859-1`. With a wrong encoding, umlauts and accents come out wrong.
