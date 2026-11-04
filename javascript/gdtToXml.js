@@ -27,7 +27,14 @@ function gdtToXml(text, options) {
 
 	// Characters XML cannot hold (control characters apart from tab and line break) are left out
 	function clean(value) {
-		return String(value).replace(/[\u0000-\u0008\u000B-\u001F￾￿]/g, '');
+		var s = String(value), out = '';
+		for (var i = 0; i < s.length; i++) {
+			var c = s.charCodeAt(i);
+			if (c == 9 || c == 10 || (c >= 32 && c != 0xFFFE && c != 0xFFFF)) {
+				out += s.charAt(i);
+			}
+		}
+		return out;
 	}
 	function looksLikeField(line) {
 		return /^\d{7}/.test(line);
