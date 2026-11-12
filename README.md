@@ -79,28 +79,78 @@ The example files in [examples](examples) are the real output of the plugin.
 
 ### Grouping
 
-The three grouping settings only change the XML, not the GDT: when the XML is written as GDT again, the groups become the same fields in the same order. With *Group Result Fields* on:
+*Group Result Fields*, *Group Categories* and *Join Results Text* are off by default, so a channel made before version 1.0.5 keeps the flat XML. They only change the XML, not the GDT: when the XML is written as GDT again, the groups become the same fields in the same order.
 
-```xml
-<results>
-  <result>
-    <F8410 name="Test ID">SYSMXTG</F8410>
-    <F8411 name="Test name">Systole max day phase</F8411>
-    <F8420 name="Result value">142</F8420>
-    <F8421 name="Unit">mmHg</F8421>
-  </result>
-</results>
+Take this part of a test data transfer (6310) of a sleep study, from [examples/grouped-results.gdt](examples/grouped-results.gdt):
+
+```
+0166330OrderID
+0186331356218126
+0136332Ward
+0206333Pulmonology
+0128410AHI
+0298411Apnea-hypopnea index
+013842012,4
+0118421/h
+0128410ODI
+0348411Oxygen desaturation index
+01284209,8
+0118421/h
+0168410SPO2MIN
+0208411Lowest SpO2
+011842084
+0108421%
+1198480Mild obstructive sleep apnea, mostly in supine position. Nasal flow signal weak, analysis based on the RIP sig
+0138480nal.
 ```
 
-A new `8410` starts the next `result`; any other field ends the `results` run. With *Group Categories* on:
+With the three settings off, every line is an element of its own under `set`, as in [The XML](#the-xml): `F6330`, `F6331`, ..., three `F8410` and two `F8480`. With all three on, it becomes ([examples/grouped-results.xml](examples/grouped-results.xml)):
 
 ```xml
 <categories>
   <category name="OrderID">356218126</category>
+  <category name="Ward">Pulmonology</category>
 </categories>
+<results>
+  <result>
+    <F8410 name="Test ID">AHI</F8410>
+    <F8411 name="Test name">Apnea-hypopnea index</F8411>
+    <F8420 name="Result value">12,4</F8420>
+    <F8421 name="Unit">/h</F8421>
+  </result>
+  <result>
+    <F8410 name="Test ID">ODI</F8410>
+    <F8411 name="Test name">Oxygen desaturation index</F8411>
+    <F8420 name="Result value">9,8</F8420>
+    <F8421 name="Unit">/h</F8421>
+  </result>
+  <result>
+    <F8410 name="Test ID">SPO2MIN</F8410>
+    <F8411 name="Test name">Lowest SpO2</F8411>
+    <F8420 name="Result value">84</F8420>
+    <F8421 name="Unit">%</F8421>
+  </result>
+</results>
+<F8480 name="Results text">Mild obstructive sleep apnea, mostly in supine position. Nasal flow signal weak, analysis based on the RIP signal.</F8480>
 ```
 
-When written as GDT, the categories are numbered from `6330` again, in the order they appear. *Join Results Text* joins the fields with nothing between them; written as GDT, the text becomes one field (with a four digit length when it is long).
+- **Group Result Fields**: an `8410` (Test ID) starts a `result`, and the `8411`, `8420` and `8421` right after it go in it. The next `8410` starts the next `result`. Any other field ends the `results` element; a later `8410` starts a new one. In [examples/test-data-transfer.gdt](examples/test-data-transfer.gdt), for example, `8432` and `8439` follow every result, so each result there gets a `results` element of its own.
+- **Group Categories**: a name field (`6330`, `6332`, ... `6398`) and the content field right after it (`6331`, `6333`, ... `6399`) become one `category`, with the name as attribute. A name without a content field gives an empty `category`. Any other field ends the `categories` element.
+- **Join Results Text**: several `8480` in a row become one, joined with nothing between them. Some devices split a long text this way instead of using a four digit length, as the second `8480` above shows (`sig` + `nal.`).
+
+With grouping on, a transformer reads a measured value by its Test ID, without counting positions:
+
+```javascript
+var set = msg['set'][0];
+var ahi = set['results']['result'].(F8410 == 'AHI')['F8420'].toString();   // 12,4
+var orderId = set['categories']['category'].(@name == 'OrderID').toString(); // 356218126
+
+for each (var r in set['results']['result']) {
+    logger.info(r['F8411'] + ' = ' + r['F8420'] + ' ' + r['F8421']);         // Apnea-hypopnea index = 12,4 /h
+}
+```
+
+When the XML is written as GDT, `results` and `result` are flattened into the same fields in the same order, and the categories are numbered from `6330` again, in the order they appear. A joined `8480` is written as one field, with a four digit length when it is longer than 990 characters. So a transformer can add a `result` or a `category` without numbering anything.
 
 ### Lengths
 
