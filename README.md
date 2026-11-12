@@ -13,7 +13,7 @@ A **GDT data type** for [Eclipse Open Integration Engine](https://openintegratio
 - **Line lengths are calculated for you** when XML is written as GDT, and so is field `8100` (the length of the set). A transformer can build a set from scratch without counting characters.
 - **Lenient by default.** Real devices do more than the specification allows (see [What real devices write](#what-real-devices-write)): wrong lengths, values of several lines, four digit lengths, a set length of six digits. All of that is read. *Strict Parsing* rejects it.
 - **Metadata** for the message list and searches: source = sender GDT-ID (`8316`), type = set type (`8000`, e.g. `6310`), version = GDT version (`9218`).
-- **Message tree descriptions** with the names of the fields of the specification. The Swing client shows them; the web administrator does too from Web Support 1.1.0.
+- **Message tree descriptions** with the names of the fields of the specification: every field of GDT 2.1, and the fields GDT 3.0 adds, which practice systems also send. The Swing client shows them; the web administrator does too from Web Support 1.1.0.
 - **Batch** processing: a file with several sets can be split into one message per set.
 
 ## Install
@@ -57,7 +57,7 @@ becomes
 
 - A field is an element named **`F`** and the four digit field number: `F3101` for the patient name.
 - The order of the fields is the order of the message. A field that occurs more than once, such as `6220`, is repeated.
-- The `name` attributes come from the specification and can be switched off (*Field Names*). Attributes are ignored when the XML is turned back into GDT, and so are `type` and the length digits.
+- The `name` attributes come from the specification (GDT 2.1, and GDT 3.0 for the fields it adds) and can be switched off (*Field Names*). A field that is in neither, such as one a device makes up, is read and written the same way, without a name. Attributes are ignored when the XML is turned back into GDT, and so are `type` and the length digits.
 - The value of a field is exactly what is in the message, spaces included. That matters for `6228`, the formatted result table.
 - A value that has line breaks in it (a report text, for example) is one field, with a line break (`\n`) in the XML. It is written as several lines again when the XML is turned back into GDT.
 - Control characters (below space, apart from a tab and a line break) cannot be in XML and are left out.
@@ -250,7 +250,7 @@ Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 
 
 - The **serial interface** (appendix A of the specification: blocks with a CRC-16 and ACK/NAK). This data type reads and writes the *lines* of GDT; use it with a File Reader / File Writer, or with any connector that delivers the whole message.
 - **Checks of the contents** of fields (dates, the values of `3110`, the lengths in the field table). Only the structure of the lines and sets is checked, and only in strict mode.
-- GDT versions other than the 2.1 interface description. Fields that are not in it are read and written like any other; they just have no name.
+- GDT versions other than the 2.1 interface description. The fields that GDT 3.0 adds have names, but its objects (`8200` ... `8201`) and `8202` (end of record) are read as plain fields, not as a structure; field `8100` is written as GDT 2.1 has it.
 
 ## Build
 

@@ -148,7 +148,7 @@ A byte order mark at the start, blank lines between sets and an old DOS end-of-f
 2. the three digit reading does not give the right length;
 3. the three digit field is **not** in `GDTFields` and the four digit field **is**.
 
-So the list of field names in `GDTFields` takes part in parsing. Adding a name there can change how an odd line is read. `GDTFieldsTest.fourDigitLengthsThatTheTableMakesAmbiguous` lists every field whose long lines the table keeps from being read with four digits, and fails when a new name changes that list. Today these are `6220`, `6221`, `6226`, `6227` and `6228` with a four digit length ending in `3` (the three digit reading gives `3622`, patient height), and `3622`, `3623` and `3628` with one ending in `6` (it gives `6362`, an open category).
+So the list of field names in `GDTFields` takes part in parsing. Adding a name there can change how an odd line is read. `GDTFieldsTest.fourDigitLengthsThatTheTableMakesAmbiguous...` list every field whose long lines the table keeps from being read with four digits, and fail when a new name changes those lists. For the GDT 2.1 fields these are `6220`, `6221`, `6226`, `6227` and `6228` with a four digit length ending in `3` (the three digit reading gives `3622`, patient height), `3622`, `3623` and `3628` with one ending in `6` (it gives `6362`, an open category), and `3100` to `3108` with one ending in `8` (it gives `8310`, a GDT 3.0 field; harmless, as these values are at most 30 characters). For the GDT 3.0 fields: `36xx` and `37xx` with `6`, and `41xx`, `420x` and `421x` with `8`. Those were not read with four digits at all before they were in the table.
 
 **Lengths.** `contentLength` counts a line break inside a value as two characters (CR LF), whichever line ending is written, as the specification does. `lineLength` adds the overhead; `physicalLength` adds one for a fourth length digit. Lengths are characters, which are bytes in the single-byte character sets GDT uses; the connector decodes the bytes, not the data type.
 
@@ -194,7 +194,7 @@ The round trip GDT → XML → GDT gives the same message, with the lengths corr
 
 ## Field names: GDTFields
 
-`GDTFields` holds two static tables from the GDT 2.1 interface description (QMS, 5/2001): field numbers and set types with their English names. They are used for:
+`GDTFields` holds two static tables: field numbers and set types with their English names, from the GDT 2.1 interface description (QMS, 5/2001) and, for the fields it adds, GDT 3.0 (QMS, 10/2013). They are used for:
 
 - the `name` attributes in the XML;
 - the message tree descriptions (`GDTVocabulary`);
@@ -204,7 +204,9 @@ Fields that are not in the table are read and written like any other; they just 
 
 The field table holds every field of section 4 of the specification (the field table), and the open categories `6330` to `6399`. `GDTFieldsTest` checks that, and that nothing else is named. One addition: the set table of 6310 (section 3.4) numbers the file fields `6202`, `6203`, `6204` and `6205`, where the field table has `6302` to `6305`. `6202` to `6204` get the names of `6302` to `6304`, for devices that follow the set table. `6205` keeps its name from the field table, *Current diagnosis*, which the same set table also uses a few lines earlier.
 
-Fields of later GDT versions (3.x) and fields a device makes up are not named: only GDT 2.1 is documented here, and each extra name also takes part in the four digit heuristic.
+The fields that GDT 3.0 adds (section 4 of its English edition, 107 fields: insurance and billing, permanent diagnoses and medication, contact details, the object structure `8200`/`8201`/`8202`, request IDs `8310`/`8314`, and more) are named too. Practice systems send them, also in files that say `02.10` in `9218`. A field that both versions have keeps its GDT 2.1 name; GDT 3.0 renamed some (`8439` *Reading time* is *Time of collection* there, which is also the name of the new `8433`).
+
+Fields that a device makes up itself are not named: no device documents them, and each extra name also takes part in the four digit heuristic. They are read and written like any other field.
 
 ## Batch processing
 
