@@ -21,6 +21,14 @@ public final class GDTFields {
             FIELDS.put(f[0], f[1]);
         }
 
+        // The set table of 6310 (section 3.4) numbers the file fields 6202, 6203, 6204 and 6205, where the field
+        // table (section 4) has 6302 to 6305. Name 6202 to 6204 as well, for devices that follow the set table;
+        // 6205 stays "Current diagnosis", as in the field table and the set table's own earlier line.
+        // A new number here also steers the reading of four digit lengths (GDTParser.isLongLine), see GDTFieldsTest.
+        FIELDS.put("6202", "Attribute for (archive) file");
+        FIELDS.put("6203", "File format");
+        FIELDS.put("6204", "Information about the content of the file");
+
         // 6330, 6332, ..., 6398 name an open category and 6331, 6333, ..., 6399 hold its content
         for (int id = 6330; id <= 6398; id += 2) {
             FIELDS.put(String.valueOf(id), "Name of open category");
