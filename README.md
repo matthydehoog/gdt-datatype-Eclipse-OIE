@@ -224,7 +224,7 @@ Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 
 
 ### On GitHub
 
-Every push and pull request is built and tested by [GitHub Actions](.github/workflows/build.yml). The engine jars are taken from the [engine's own release](https://github.com/OpenIntegrationEngine/engine/releases) (checked against its published SHA-256) and cached; the zip of each build is kept as an artifact.
+Every push and pull request is built and tested by [GitHub Actions](.github/workflows/build.yml) against OIE 4.6.0 (Java 17) and 4.7.0 (Java 17 and 21). The zip is then installed in a real engine of both versions, which deploys a channel and converts and splits GDT messages (the smoke test, see the [development guide](docs/development.md#smoke-test)). The engine jars are taken from the [engine's own release](https://github.com/OpenIntegrationEngine/engine/releases) (checked against its published SHA-256) and cached; the zip of each build is kept as an artifact.
 
 ### Releasing
 
