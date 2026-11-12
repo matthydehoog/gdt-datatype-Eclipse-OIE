@@ -283,7 +283,7 @@ If the installer refuses because the extension already exists, uninstall the old
 1. It downloads the engine release (`download-oie.sh`, checked against its SHA-256 and cached in `~/.cache/oie`), installs the zip in `extensions/` and checks that `mirthVersion` lists the engine version.
 2. It starts the engine with its own JVM options, logs in through the REST API and checks that the *GDT Data Type* extension is loaded.
 3. `.github/smoke/SmokeChannel.java` writes a channel with the engine's own model classes: an HTTP Listener with data type GDT in and XML out, and *Process Batch* on (split by set). The script imports and deploys it.
-4. It posts `examples/test-data-transfer.gdt` and checks the transformed XML (patient name, a result value), then posts `examples/two-sets.gdt` and checks that it became two messages (sets 6300 and 6301). No message may end in ERROR.
+4. It posts `examples/test-data-transfer.gdt` and checks the transformed XML (patient name, a result value) and the connector map variables (`gdtTest`, `gdtPatientNumber`, `gdtTestDate`, `gdtSender`), then posts `examples/two-sets.gdt` and checks that it became two messages (sets 6300 and 6301). No message may end in ERROR.
 
 Run it locally with a JDK (the channel generator runs as a Java source file, which a JRE cannot do) and free ports:
 

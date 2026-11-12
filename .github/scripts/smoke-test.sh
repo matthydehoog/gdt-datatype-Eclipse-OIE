@@ -3,7 +3,8 @@
 # installs the zip, starts the server, deploys the channel of .github/smoke/SmokeChannel.java
 # (HTTP Listener, data type GDT in and XML out, Process Batch split by set) and posts two files:
 #
-#   examples/test-data-transfer.gdt   200, the set as GDT XML (patient name, results)
+#   examples/test-data-transfer.gdt   200, the set as GDT XML (patient name, results), and the
+#                                     connector map variables (gdtTest, gdtPatientNumber, ...)
 #   examples/two-sets.gdt             200, and the channel received two more messages
 #
 # This covers what the unit tests cannot: the engine loads the extension (exact mirthVersion),
@@ -150,6 +151,12 @@ expect_content() { # <text> <what>
   echo "OK  $2"
 }
 
+expect_map() { # <variable> <value>: in the connector map of a message (what the Mappings tab shows)
+  tr -d ' \t\r\n' < "${work}/messages.xml" | grep -qF "<string>$1</string><string>$2</string>" \
+    || fail "connector map: $1 = $2 is not in the messages (see ${work}/messages.xml)"
+  echo "OK  connector map: $1 = $2"
+}
+
 received() { # the number of messages the channel received
   curl_api -H "Accept: application/xml" "${api}/channels/${channel_id}/statistics" | sed -n 's|.*<received>\([0-9]*\)</received>.*|\1|p' | head -1
 }
@@ -169,6 +176,10 @@ expect_received 1 "one-set"
 messages
 expect_content '<F3101 name="Patient name">Samplesmith</F3101>' "one-set: patient name in the XML"
 expect_content '<F8420 name="Result value">142</F8420>' "one-set: results in the XML"
+expect_map gdtTest BDM01
+expect_map gdtPatientNumber 2345
+expect_map gdtTestDate 23101998
+expect_map gdtSender LZBD_SYS
 
 post two-sets "${repo}/examples/two-sets.gdt"
 expect_received 3 "two-sets (split by set)"
