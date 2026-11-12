@@ -1,7 +1,9 @@
 name: Build
 
-# Builds and tests every push and pull request. A pushed version tag (v1.0.6) also creates the
-# GitHub release with the zip and its SHA-256 (see .github/scripts/release.sh).
+# Builds and tests every push and pull request against every engine version the plugin declares
+# (mirthVersion in plugin.xml), then installs the zip in a real engine of each version and runs
+# .github/scripts/smoke-test.sh. A pushed version tag (v1.0.6) also creates the GitHub release
+# with the zip and its SHA-256 (see .github/scripts/release.sh).
 on:
   push:
     branches: [main]
@@ -13,49 +15,126 @@ permissions:
   contents: write # creating releases
 
 env:
-  # The engine version this plugin compiles against: keep equal to oie.version in pom.xml.
+  # The engine version the released zip is compiled against: keep equal to oie.version in pom.xml.
   OIE_VERSION: 4.6.0
 
 jobs:
   build:
+    name: Build (OIE ${{ matrix.oie }}, Java ${{ matrix.java }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { oie: 4.6.0, java: '17', release: true }
+          - { oie: 4.7.0, java: '17' }
+          - { oie: 4.7.0, java: '21' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: ${{ matrix.java }}
 
       - name: Cache Maven repository
         uses: actions/cache@v6
         with:
           path: ~/.m2/repository
-          key: maven-oie${{ env.OIE_VERSION }}-${{ hashFiles('pom.xml') }}
-          restore-keys: maven-oie${{ env.OIE_VERSION }}-
+          key: maven-oie${{ matrix.oie }}-${{ hashFiles('pom.xml') }}
+          restore-keys: maven-oie${{ matrix.oie }}-
 
       - name: Install the OIE engine jars
         run: |
-          if [ -f ~/.m2/repository/com/mirth/connect/client-core/${OIE_VERSION}/client-core-${OIE_VERSION}.jar ]; then
-            echo "Engine jars ${OIE_VERSION} restored from the cache"
+          if [ -f ~/.m2/repository/com/mirth/connect/client-core/${{ matrix.oie }}/client-core-${{ matrix.oie }}.jar ]; then
+            echo "Engine jars ${{ matrix.oie }} restored from the cache"
           else
-            bash .github/scripts/install-oie-jars.sh "${OIE_VERSION}"
+            bash .github/scripts/install-oie-jars.sh "${{ matrix.oie }}" "${RUNNER_TEMP}/oie"
           fi
 
       - name: Check versions
+        if: matrix.release
         run: bash .github/scripts/check-versions.sh "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}"
 
       - name: Build and test
-        run: mvn -B package
+        run: mvn -B package -Doie.version=${{ matrix.oie }}
 
       - name: Keep the zip
-        uses: actions/upload-artifact@v4
+        if: matrix.release
+        uses: actions/upload-artifact@v7
         with:
           name: datatype-gdt
           path: target/datatype-gdt-*.zip
 
+  smoke:
+    name: Smoke test (OIE ${{ matrix.oie }}, Java ${{ matrix.java }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { oie: 4.6.0, java: '17' }
+          - { oie: 4.7.0, java: '21' }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: datatype-gdt
+          path: dist
+
+      - name: Cache the engine release
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/oie
+          key: oie-release-${{ matrix.oie }}
+
+      - name: Smoke test
+        run: bash .github/scripts/smoke-test.sh "${{ matrix.oie }}" dist/datatype-gdt-*.zip
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/smoke
+
+      - name: Keep the server log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-log-${{ matrix.oie }}
+          path: |
+            ${{ runner.temp }}/smoke/oie/logs/
+            ${{ runner.temp }}/smoke/server.out
+            ${{ runner.temp }}/smoke/*.response
+            ${{ runner.temp }}/smoke/messages.xml
+            ${{ runner.temp }}/smoke/channel.xml
+
+  release:
+    needs: smoke
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: datatype-gdt
+          path: target
+
       - name: Create the release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/release.sh "${{ github.ref_name }}"
+
+  # Releases created above with GITHUB_TOKEN do not fire `release`, so call the catalog workflow here.
+  catalog:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/catalog-pr.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      CATALOG_TOKEN: ${{ secrets.CATALOG_TOKEN }}

@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml/badge.svg)](https://github.com/matthydehoog/gdt-datatype-Eclipse-OIE/actions/workflows/build.yml)
 
-A **GDT data type** for [Eclipse Open Integration Engine](https://openintegrationengine.org/) (tested against **4.6.0**), modelled on the built-in *EDI / X12* data type. GDT (*Geräte-Daten-Träger*, "device data carrier") is the interface of the QMS (Qualitätsring Medizinische Software) between medical measuring devices (ECG, spirometer, blood pressure monitor, ...) and the computer system of a practice. Once installed, "GDT" shows up next to HL7 v2.x, EDI / X12 and the other data types in the Swing client and the web administrator.
+A **GDT data type** for [Eclipse Open Integration Engine](https://openintegrationengine.org/) (tested against **4.6.0** and **4.7.0**), modelled on the built-in *EDI / X12* data type. GDT (*Geräte-Daten-Träger*, "device data carrier") is the interface of the QMS (Qualitätsring Medizinische Software) between medical measuring devices (ECG, spirometer, blood pressure monitor, ...) and the computer system of a practice. Once installed, "GDT" shows up next to HL7 v2.x, EDI / X12 and the other data types in the Swing client and the web administrator.
 
 > Community extension. It is not part of, or endorsed by, the Eclipse OIE project, nor by the QMS.
 
@@ -13,7 +13,7 @@ A **GDT data type** for [Eclipse Open Integration Engine](https://openintegratio
 - **Line lengths are calculated for you** when XML is written as GDT, and so is field `8100` (the length of the set). A transformer can build a set from scratch without counting characters.
 - **Lenient by default.** Real devices do more than the specification allows (see [What real devices write](#what-real-devices-write)): wrong lengths, values of several lines, four digit lengths, a set length of six digits. All of that is read. *Strict Parsing* rejects it.
 - **Metadata** for the message list and searches: source = sender GDT-ID (`8316`), type = set type (`8000`, e.g. `6310`), version = GDT version (`9218`).
-- **Message tree descriptions** with the names of the fields of the specification.
+- **Message tree descriptions** with the names of the fields of the specification. The Swing client shows them; the web administrator does too from Web Support 1.1.0.
 - **Batch** processing: a file with several sets can be split into one message per set.
 
 ## Install
@@ -72,7 +72,37 @@ The example files in [examples](examples) are the real output of the plugin.
 | Field Names | Add the name of each field as an attribute in the XML | on |
 | Calculate Set Length | Calculate `8100` when XML is written as GDT, and add it behind `8000` when missing. Off: write it as it is in the XML | on |
 | Line Ending | What ends a line when XML is written as GDT: CRLF, LF or CR. The specification asks for CRLF | CRLF |
+| Group Result Fields | Nest a field `8410` (Test ID) and the `8411`, `8420` and `8421` that follow it in one `<result>` element, and a run of them in one `<results>` element (see [Grouping](#grouping)) | off |
+| Group Categories | Turn an open category (a name field `6330`, `6332`, ... followed by its content field `6331`, `6333`, ...) into `<category name="...">content</category>`, and a run of them into one `<categories>` element | off |
+| Join Results Text | Join several field `8480` (Results text) in a row into one. Some devices split a long text over several `8480` fields instead of using a four digit length | off |
 | Split Batch By (Batch) | *Set*: every set is one message. *JavaScript*: your own splitter. Only used when *Process Batch Files* is on in the connector | Set |
+
+### Grouping
+
+The three grouping settings only change the XML, not the GDT: when the XML is written as GDT again, the groups become the same fields in the same order. With *Group Result Fields* on:
+
+```xml
+<results>
+  <result>
+    <F8410 name="Test ID">SYSMXTG</F8410>
+    <F8411 name="Test name">Systole max day phase</F8411>
+    <F8420 name="Result value">142</F8420>
+    <F8421 name="Unit">mmHg</F8421>
+  </result>
+</results>
+```
+
+A new `8410` starts the next `result`; any other field ends the `results` run. With *Group Categories* on:
+
+```xml
+<categories>
+  <category name="OrderID">356218126</category>
+</categories>
+```
+
+When written as GDT, the categories are numbered from `6330` again, in the order they appear. *Join Results Text* joins the fields with nothing between them; written as GDT, the text becomes one field (with a four digit length when it is long).
+
+### Lengths
 
 The length of every line is always calculated, and it counts a CR LF whichever line ending is written, as the specification does. A line break inside a value counts as CR LF as well. Lengths are counted in characters, which are bytes in the single byte character sets that GDT uses.
 
@@ -133,6 +163,35 @@ Which set answers which:
 | 6310 | device -> practice system | Test data transfer (the results) |
 | 6311 | practice system -> device | Test data display |
 
+## Without the plugin: gdtToXml in JavaScript
+
+Where the extension cannot be installed, [javascript/gdtToXml.js](javascript/gdtToXml.js) reads GDT in a transformer with plain JavaScript and gives the same XML as the data type with *Field Names* off. Add the function as a code template (in a library that is enabled for the channel), set the inbound data type of the source connector to **Raw**, and start the first transformer step with:
+
+```javascript
+msg = gdtToXml(msg);
+```
+
+From there the scripts are the same as with the data type, for example `msg['set']['F3000']` or `msg['set']['categories']['category'].(@name == 'OrderID')`. The grouping settings are options, given as a second argument; each one you leave out is **on**:
+
+```javascript
+msg = gdtToXml(msg, {
+    groupResults: true,     // Group Result Fields
+    groupCategories: true,  // Group Categories
+    joinResultsText: false  // Join Results Text
+});
+```
+
+It reads GDT the way the data type does when *Strict Parsing* is off: values of several lines, wrong line lengths, fields before the first `8000`, a byte order mark and an end-of-file mark. The XML was compared with the data type's for all eight combinations of the options, on the [examples](examples), three files of a Noxturnal NOX T3 and files made for the edge cases: it is the same.
+
+What it does not do:
+
+- Write GDT. Reading only.
+- *Strict Parsing* and *Field Names*.
+- Use the field table for four digit lengths. A line of 998 characters or more is read with a four digit length; the data type also checks which reading gives a known field, so only a long line with a wrong length can come out differently.
+- Decode the bytes: as with the data type, set the encoding of the File Reader to match field `9206` (Noxturnal writes `2`, so `IBM437`).
+
+In Rhino, `appendChild` adds a copy of an element, so the function always goes on with the child that is in the document. Keep that in mind when changing it.
+
 ## Character sets
 
 Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 (the default of the specification), `3` = ISO 8859-1 (ANSI, code page 1252). The data type does not decode the bytes; the **connector** does. Set the encoding of the File Reader (and the File Writer) to match, for example `IBM437` or `ISO-8859-1`. With a wrong encoding, umlauts and accents come out wrong.
@@ -165,7 +224,7 @@ Field `9206` says how the file is encoded: `1` = 7 bit, `2` = IBM code page 437 
 
 ### On GitHub
 
-Every push and pull request is built and tested by [GitHub Actions](.github/workflows/build.yml). The engine jars are taken from the [engine's own release](https://github.com/OpenIntegrationEngine/engine/releases) (checked against its published SHA-256) and cached; the zip of each build is kept as an artifact.
+Every push and pull request is built and tested by [GitHub Actions](.github/workflows/build.yml) against OIE 4.6.0 (Java 17) and 4.7.0 (Java 17 and 21). The zip is then installed in a real engine of both versions, which deploys a channel and converts and splits GDT messages (the smoke test, see the [development guide](docs/development.md#smoke-test)). The engine jars are taken from the [engine's own release](https://github.com/OpenIntegrationEngine/engine/releases) (checked against its published SHA-256) and cached; the zip of each build is kept as an artifact.
 
 ### Releasing
 
@@ -173,13 +232,15 @@ Every push and pull request is built and tested by [GitHub Actions](.github/work
 2. Commit, then tag and push the tag:
 
    ```bash
-   git tag v1.0.6
-   git push origin v1.0.6
+   git tag v1.0.7
+   git push origin v1.0.7
    ```
 
 The workflow builds the tag and creates the GitHub release with the zip and its SHA-256. To write the release notes yourself, create the release on GitHub first (without a zip); the workflow then only adds the zip and the checksum.
 
 ## Design notes (for developers)
+
+The [development guide](docs/development.md) covers building, the parser and the XML conversion, testing, the CI and releasing in detail. In short:
 
 - **Package name.** The classes live in `com.mirth.connect.plugins.datatypes.gdt`. The engine's XStream allow-list only accepts classes from the `com.mirth.connect.*` family when it reads a channel.
 - **Folder name = `path`.** The `path` attribute in `plugin.xml` (`datatype-gdt`) must equal the extension folder name.
