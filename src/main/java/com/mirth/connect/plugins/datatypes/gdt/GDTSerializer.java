@@ -97,6 +97,12 @@ public class GDTSerializer implements IMessageSerializer {
         }
     }
 
+    private static void put(Map<String, Object> map, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            map.put(key, value.trim());
+        }
+    }
+
     @Override
     public Map<String, Object> getMetaDataFromMessage(String message) {
         Map<String, Object> map = new HashMap<String, Object>();
@@ -105,8 +111,18 @@ public class GDTSerializer implements IMessageSerializer {
     }
 
     /**
+     * Connector map variables with fields of the first set, so that a filter, a router or a file name does not
+     * have to parse the message: <code>$('gdtTest')</code>, <code>${gdtReceiver}${gdtSender}.gdt</code>. A field
+     * that is missing or empty gives no variable.
+     */
+    static final String[][] MAP_VARIABLES = { { "gdtPatientNumber", "3000" }, { "gdtTest", "8402" }, { "gdtSetType", "8000" }, { "gdtSender", "8316" }, { "gdtReceiver", "8315" }, { "gdtTestDate", "6200" }, { "gdtTestTime", "6201" } };
+
+    /**
      * Source is the sender (field 8316), type the set type (field 8000, for example 6310) and version the
      * GDT version (field 9218, for example 02.10). All three come from the first set.
+     *
+     * The engine passes the connector map here (FilterTransformerExecutor, before the filter runs), so the
+     * variables of {@link #MAP_VARIABLES} go into the connector map as well.
      */
     @Override
     public void populateMetaData(String message, Map<String, Object> map) {
@@ -117,18 +133,11 @@ public class GDTSerializer implements IMessageSerializer {
             }
             FieldSet first = sets.get(0);
 
-            String source = first.value("8316");
-            String type = first.type();
-            String version = first.value("9218");
-
-            if (source != null && !source.trim().isEmpty()) {
-                map.put(DefaultMetaData.SOURCE_VARIABLE_MAPPING, source.trim());
-            }
-            if (type != null && !type.trim().isEmpty()) {
-                map.put(DefaultMetaData.TYPE_VARIABLE_MAPPING, type.trim());
-            }
-            if (version != null && !version.trim().isEmpty()) {
-                map.put(DefaultMetaData.VERSION_VARIABLE_MAPPING, version.trim());
+            put(map, DefaultMetaData.SOURCE_VARIABLE_MAPPING, first.value("8316"));
+            put(map, DefaultMetaData.TYPE_VARIABLE_MAPPING, first.type());
+            put(map, DefaultMetaData.VERSION_VARIABLE_MAPPING, first.value("9218"));
+            for (String[] variable : MAP_VARIABLES) {
+                put(map, variable[0], first.value(variable[1]));
             }
         } catch (Exception e) {
             logger.warn("Error populating GDT metadata: " + e.getMessage());

@@ -13,6 +13,7 @@ A **GDT data type** for [Eclipse Open Integration Engine](https://openintegratio
 - **Line lengths are calculated for you** when XML is written as GDT, and so is field `8100` (the length of the set). A transformer can build a set from scratch without counting characters.
 - **Lenient by default.** Real devices do more than the specification allows (see [What real devices write](#what-real-devices-write)): wrong lengths, values of several lines, four digit lengths, a set length of six digits. All of that is read. *Strict Parsing* rejects it.
 - **Metadata** for the message list and searches: source = sender GDT-ID (`8316`), type = set type (`8000`, e.g. `6310`), version = GDT version (`9218`).
+- **Connector map variables** for filters, routers and file names: patient number, test (`8402`), sender, receiver, set type, date and time of the test (see [Connector map variables](#connector-map-variables)).
 - **Message tree descriptions** with the names of the fields of the specification: every field of GDT 2.1, and the fields GDT 3.0 adds, which practice systems also send. The Swing client shows them; the web administrator does too from Web Support 1.1.0.
 - **Batch** processing: a file with several sets can be split into one message per set.
 
@@ -212,6 +213,40 @@ Which set answers which:
 | 6302 | practice system -> device | New test request (`8402` says which test, e.g. `EKG01`) |
 | 6310 | device -> practice system | Test data transfer (the results) |
 | 6311 | practice system -> device | Test data display |
+
+### Connector map variables
+
+So that a filter, a router or a file name does not have to parse the message, the data type puts these fields of the first set in the **connector map**, next to the metadata (source, type, version). A field that is missing or empty gives no variable; values are trimmed.
+
+| Variable | Field | Example |
+|---|---|---|
+| `gdtPatientNumber` | `3000` Patient number | `2345` |
+| `gdtTest` | `8402` Device and method specific field | `EKG01` |
+| `gdtSetType` | `8000` Set type | `6310` |
+| `gdtSender` | `8316` Sender GDT-ID | `LZBD_SYS` |
+| `gdtReceiver` | `8315` Receiver GDT-ID | `PRAX_EDP` |
+| `gdtTestDate` | `6200` Date of the test (DDMMYYYY) | `23101998` |
+| `gdtTestTime` | `6201` Time of the test (HHMMSS) | `163400` |
+
+They are in the connector map of the connector whose inbound data type is GDT, usually the source, and the message browser shows them on the *Mappings* tab. A source filter can use them directly:
+
+```javascript
+return $('gdtTest') == 'EKG01';
+```
+
+With batch processing every set is its own message, with its own variables.
+
+A destination has its own connector map, filled from *its* inbound data type, which is usually XML. To use the variables there, for example in the file name of a File Writer (`${gdtReceiver}${gdtSender}.gdt`), copy them to the channel map in the source transformer:
+
+```javascript
+for each (var name in ['gdtPatientNumber', 'gdtTest', 'gdtSetType', 'gdtSender', 'gdtReceiver', 'gdtTestDate', 'gdtTestTime']) {
+    if (connectorMap.containsKey(name)) {
+        channelMap.put(name, connectorMap.get(name));
+    }
+}
+```
+
+A destination whose inbound data type is GDT gets the variables itself.
 
 ## Without the plugin: gdtToXml in JavaScript
 

@@ -814,6 +814,46 @@ public class GDTSerializerTest {
     }
 
     @Test
+    public void connectorMapVariablesComeFromTheFirstSet() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        String file = set("80006310", "8315PRAX_EDP", "8316LZBD_SYS", "921802.10", "300002345", "8402BDM01", "620023101998", "6201163400")
+                + set("80006310", "300009999", "8402EKG01");
+        serializer().populateMetaData(file, map);
+
+        assertEquals("02345", map.get("gdtPatientNumber"));
+        assertEquals("BDM01", map.get("gdtTest"));
+        assertEquals("6310", map.get("gdtSetType"));
+        assertEquals("LZBD_SYS", map.get("gdtSender"));
+        assertEquals("PRAX_EDP", map.get("gdtReceiver"));
+        assertEquals("23101998", map.get("gdtTestDate"));
+        assertEquals("163400", map.get("gdtTestTime"));
+        assertEquals("LZBD_SYS", map.get(DefaultMetaData.SOURCE_VARIABLE_MAPPING));
+    }
+
+    @Test
+    public void aMissingOrEmptyFieldGivesNoVariable() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        serializer().populateMetaData(set("80006300", "300000000", "8402  "), map);
+
+        assertEquals("00000", map.get("gdtPatientNumber"));
+        assertEquals("6300", map.get("gdtSetType"));
+        assertFalse(map.containsKey("gdtTest"));
+        assertFalse(map.containsKey("gdtSender"));
+        assertFalse(map.containsKey("gdtReceiver"));
+        assertFalse(map.containsKey("gdtTestDate"));
+        assertFalse(map.containsKey("gdtTestTime"));
+    }
+
+    @Test
+    public void connectorMapVariablesAreTrimmed() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        serializer().populateMetaData(set("80006310", "3000 123 ", "8316LZBD_SYS  "), map);
+
+        assertEquals("123", map.get("gdtPatientNumber"));
+        assertEquals("LZBD_SYS", map.get("gdtSender"));
+    }
+
+    @Test
     public void metaDataOfGarbageIsEmptyAndDoesNotThrow() {
         Map<String, Object> map = new HashMap<String, Object>();
         serializer().populateMetaData("not gdt", map);
