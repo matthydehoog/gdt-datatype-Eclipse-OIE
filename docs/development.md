@@ -31,7 +31,7 @@ This guide is for people who build, change or release the GDT Data Type. For usi
 | `src/main/resources/plugin.xml` | The extension descriptor the engine reads. |
 | `src/test/` | JUnit 4 tests (`GDTSerializerTest`). |
 | `webadmin/` | The properties panel for the OIE web administrator (`plugin.json`, `web/plugin.js`). |
-| `examples/` | Sample GDT files and the XML the plugin makes of one of them. |
+| `examples/` | Sample GDT files, and the XML the plugin makes of two of them (`grouped-results.xml` with the three grouping settings on). |
 | `assembly.xml` | How the extension zip is laid out. |
 | `oie.json` | The manifest for the OIE Community Store catalog. |
 | `.github/` | Build, release, catalog and Jira workflows and their scripts. |
