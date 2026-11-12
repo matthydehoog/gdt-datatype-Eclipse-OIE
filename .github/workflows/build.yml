@@ -38,7 +38,7 @@ jobs:
           java-version: ${{ matrix.java }}
 
       - name: Cache Maven repository
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository
           key: maven-oie${{ matrix.oie }}-${{ hashFiles('pom.xml') }}
@@ -90,7 +90,7 @@ jobs:
           path: dist
 
       - name: Cache the engine release
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/oie
           key: oie-release-${{ matrix.oie }}
