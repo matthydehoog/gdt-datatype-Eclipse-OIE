@@ -61,7 +61,7 @@ jobs:
 
       - name: Keep the zip
         if: matrix.release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: datatype-gdt
           path: target/datatype-gdt-*.zip
@@ -102,7 +102,7 @@ jobs:
 
       - name: Keep the server log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-log-${{ matrix.oie }}
           path: |
