@@ -263,11 +263,31 @@ If the installer refuses because the extension already exists, uninstall the old
 
 `.github/workflows/build.yml` runs on every push to `main`, every pull request and every `v*` tag:
 
-1. Java 17 (Temurin) and a Maven cache keyed on the engine version and `pom.xml`.
-2. `install-oie-jars.sh` when the engine jars are not cached. `OIE_VERSION` in the workflow must equal `oie.version` in `pom.xml`.
-3. `check-versions.sh`: the version in `pom.xml`, `plugin.xml`, `oie.json` and `webadmin/plugin.json` must be the same, and on a tag equal to the tag.
-4. `mvn -B package`, and the zip is kept as a build artifact.
-5. On a tag: `release.sh` creates the release, then the `catalog` job calls `catalog-pr.yml`.
+1. **Build**, for every engine version in `mirthVersion`: OIE 4.6.0 on Java 17, and OIE 4.7.0 on Java 17 and 21 (Temurin), each with a Maven cache keyed on the engine version and `pom.xml`.
+   - `install-oie-jars.sh` when the engine jars are not cached.
+   - `mvn -B package -Doie.version=<engine>`: the unit tests run against that engine's jars.
+   - Only the 4.6.0 build runs `check-versions.sh` (the version in `pom.xml`, `plugin.xml`, `oie.json` and `webadmin/plugin.json` must be the same, and on a tag equal to the tag) and keeps the zip as a build artifact. That zip is the one released, so `OIE_VERSION` in the workflow must equal `oie.version` in `pom.xml`.
+2. **Smoke test** of that zip in a real engine, OIE 4.6.0 on Java 17 and OIE 4.7.0 on Java 21 (see below). On failure the server log, the channel and the messages are kept as an artifact.
+3. On a tag, after the smoke tests: `release.sh` creates the release, then the `catalog` job calls `catalog-pr.yml`.
+
+### Smoke test
+
+`.github/scripts/smoke-test.sh <engine version> <zip>` covers what the unit tests cannot:
+
+1. It downloads the engine release (`download-oie.sh`, checked against its SHA-256 and cached in `~/.cache/oie`), installs the zip in `extensions/` and checks that `mirthVersion` lists the engine version.
+2. It starts the engine with its own JVM options, logs in through the REST API and checks that the *GDT Data Type* extension is loaded.
+3. `.github/smoke/SmokeChannel.java` writes a channel with the engine's own model classes: an HTTP Listener with data type GDT in and XML out, and *Process Batch* on (split by set). The script imports and deploys it.
+4. It posts `examples/test-data-transfer.gdt` and checks the transformed XML (patient name, a result value), then posts `examples/two-sets.gdt` and checks that it became two messages (sets 6300 and 6301). No message may end in ERROR.
+
+Run it locally with a JDK (the channel generator runs as a Java source file, which a JRE cannot do) and free ports:
+
+```bash
+mvn clean package
+JAVA="$JAVA_HOME/bin/java" SMOKE_HTTP_PORT=18080 SMOKE_HTTPS_PORT=18443 SMOKE_LISTENER_PORT=18090 \
+  bash .github/scripts/smoke-test.sh 4.7.0 target/datatype-gdt-1.0.7.zip
+```
+
+The ports keep it away from an engine that already runs on 8080/8443. `SMOKE_DIR` keeps the test engine in a folder of your choice.
 
 Dependabot (`.github/dependabot.yml`) proposes updates weekly for Maven and monthly for GitHub Actions. It ignores the engine jars and the libraries the engine ships (`log4j-api`, `commons-lang3`, `rhino`): those must match the engine, not the newest version.
 
@@ -291,7 +311,7 @@ Other workflows:
    git push origin v1.0.7
    ```
 
-   The build creates the release with `datatype-gdt-<version>.zip` and its `.sha256`, or adds them to the release you wrote. A release that already has a zip is left alone: a new build gives a different file, whose checksum would not match.
+   When the builds and smoke tests pass, the workflow creates the release with `datatype-gdt-<version>.zip` and its `.sha256`, or adds them to the release you wrote. A release that already has a zip is left alone: a new build gives a different file, whose checksum would not match.
 6. **Catalog.** Check the pull request the catalog job filed, and close earlier ones of this plugin that are still open.
 7. **Jira.** Closing a GitHub issue does not close its Jira issue: set it to *Done* yourself.
 8. **Documentation.** Update the README when behaviour or settings change.
