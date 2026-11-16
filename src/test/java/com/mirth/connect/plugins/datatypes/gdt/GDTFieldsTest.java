@@ -84,14 +84,16 @@ public class GDTFieldsTest {
     }
 
     /**
-     * A line with a four digit length is only read as such when its three digit reading gives an unknown field
-     * (GDTParser.isLongLine). So a field number added to the table can stop a long line of another field from
-     * being read: 1003 6220 ... reads as length 100 and field 3622, which is known. These tests list every such
-     * pair, so that adding a field shows what it changes.
+     * A line with a four digit length is read as such without more checks when its three digit reading gives an
+     * unknown field (GDTParser.isLongLine). When both readings give a known field, as 1003 6220 ... (length 100,
+     * field 3622) does, the parser has to decide by the length of the line or the kind of field. These tests list
+     * every such pair, so that adding a field shows what it changes.
      */
     @Test
     public void fourDigitLengthsThatTheTableMakesAmbiguousForGdt21Fields() {
-        // 6220 to 6228 (3622 is known) and 3622 to 3628 (6362 is an open category) since the first version.
+        // 6220 to 6228 (3622 is known) since the first version: decided by the exact four digit length, or else
+        // because 3622 (height) cannot hold a long text (issue #30, see GDTSerializerTest).
+        // 3622 to 3628 (6362 is an open category): harmless, these values are never long.
         // 3100 to 3108 since the GDT 3.0 fields (8310): harmless, these are names and addresses of at most 30
         // characters, which never get a four digit length.
         assertEquals(pairs(

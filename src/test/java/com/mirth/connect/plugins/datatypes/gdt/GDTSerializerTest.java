@@ -792,6 +792,80 @@ public class GDTSerializerTest {
         assertEquals(value.toString(), set.fields.get(1).value);
     }
 
+    /** A value that gives a line of this length with a four digit length (4 + 4 + value + CR LF). */
+    private static String valueForLongLine(int length) {
+        StringBuilder value = new StringBuilder();
+        while (value.length() < length - 10) {
+            value.append("Normal sleep architecture. ");
+        }
+        return value.substring(0, length - 10);
+    }
+
+    /**
+     * Issue #30: 1003 6220 text can also be read as 100 3622 0text, and 3622 (height) is known. Every long
+     * 6220-6228 line must keep its field, for a length ending in 3 too.
+     */
+    @Test
+    public void aLongResultsLineWithALengthEndingIn3IsNotReadAsHeight() throws Exception {
+        for (String id : new String[] { "6220", "6221", "6226", "6227", "6228" }) {
+            for (int length : new int[] { 1002, 1003, 1004, 1013, 1103, 2003, 9993 }) {
+                String value = valueForLongLine(length);
+                String gdt = line("8000", "6310") + length + id + value + "\r\n";
+                GDTParser.FieldSet set = GDTParser.parse(gdt, false).get(0);
+
+                assertEquals(id + " with length " + length, id, set.fields.get(1).id);
+                assertEquals(id + " with length " + length, value, set.fields.get(1).value);
+            }
+        }
+    }
+
+    @Test
+    public void aLongResultsLineWithALengthEndingIn3SurvivesTheTripThroughXml() throws Exception {
+        for (int length : new int[] { 1003, 1013, 1103 }) {
+            String value = valueForLongLine(length);
+            String gdt = line("8000", "6310") + length + "6220" + value + "\r\n";
+            GDTSerializationProperties p = new GDTSerializationProperties();
+            p.setCalculateSetLength(false);
+            String xml = serializer(p).toXML(gdt);
+
+            assertEquals(value, child(xml(xml), "F6220", 0).getTextContent());
+            assertNull(child(xml(xml), "F3622", 0));
+            String back = serializer(p).fromXML(xml);
+            assertTrue("length " + length + ": " + back.substring(0, 30), back.contains("\r\n" + length + "6220" + value + "\r\n"));
+        }
+    }
+
+    /** A four digit length that is a few characters off: the three digit reading would put 990+ characters in 3622. */
+    @Test
+    public void aLongResultsLineWithALengthThatIsAFewCharactersOffKeepsItsField() throws Exception {
+        for (int off : new int[] { -3, -1, 1, 5 }) {
+            String value = valueForLongLine(1003 + off);
+            GDTParser.FieldSet set = GDTParser.parse(line("8000", "6310") + "1003" + "6228" + value + "\r\n", false).get(0);
+
+            assertEquals("off by " + off, "6228", set.fields.get(1).id);
+            assertEquals("off by " + off, value, set.fields.get(1).value);
+        }
+    }
+
+    @Test
+    public void strictStillRejectsAFourDigitLength() {
+        try {
+            GDTParser.parse(line("8000", "6310") + "1003" + "6220" + valueForLongLine(1003) + "\r\n", true);
+            fail();
+        } catch (GDTParser.SyntaxException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("length says"));
+        }
+    }
+
+    /** A real height line keeps its field, also with a wrong three digit length. */
+    @Test
+    public void aShortHeightLineIsNotTakenForAFourDigitLength() throws Exception {
+        GDTParser.FieldSet set = GDTParser.parse(line("8000", "6310") + "1003622180\r\n", false).get(0);
+
+        assertEquals("3622", set.fields.get(1).id);
+        assertEquals("180", set.fields.get(1).value);
+    }
+
     @Test
     public void aFieldNumberThatIsNotInTheSpecificationStaysAsItIs() throws Exception {
         String longUnknown = line("8000", "6310") + "0291234" + "value";
