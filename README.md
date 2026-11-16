@@ -165,7 +165,7 @@ The specification is from 2001, and devices do not stick to it. This is what the
 |---|---|
 | A wrong length in front of a line | Ignores it (unless *Strict Parsing*) |
 | A value with line breaks in it: only the first line has a length and a field number, the lines that follow are plain text | Reads them as part of that field, with a line break (`\n`) between them |
-| A length of four digits (`1342`) for a value longer than 990 characters | Reads it as a four digit length when that gives a field of the specification and the three digit reading (`134` and field `2842`) does not |
+| A length of four digits (`1342`) for a value longer than 990 characters | Reads it as a four digit length when that gives a field of the specification and the three digit reading (`134` and field `2842`) does not. When both give a known field (`1003 6220…` is also `100 3622 0…`, patient height), the four digit reading wins when its length matches the line, or when the three digit field is a short one (patient data, height, weight, language) with more than 100 characters in it |
 | Field `8100` (set length) with six digits, and a value that is a few characters off | Reads it as it is. When writing, `8100` has as many digits as it needs and says what the set really is |
 
 When XML is written as GDT, a value longer than 990 characters gets a four digit length, as these devices do; the specification has three. A field can hold at most 9990 characters. Turn *Calculate Set Length* off to write `8100` as it is in the XML.

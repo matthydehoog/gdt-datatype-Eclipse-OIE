@@ -25,8 +25,8 @@ import java.util.List;
  * has the length and the field number. The lines that follow do not look like GDT lines (they do not begin with
  * seven digits) and belong to the field before them. Such a value has a line break as \n in it;</li>
  * <li>a value longer than 990 characters has a four digit length (1342 instead of 134), which is read as the
- * length when the three digit reading would give a field number that does not exist and the four digit reading
- * one that does;</li>
+ * length when the four digit reading gives a field of the specification and the three digit reading does not, or
+ * gives one that cannot be right (see isLongLine);</li>
  * <li>field 8100 can have more than five digits.</li>
  * </ul>
  */
@@ -214,9 +214,24 @@ public final class GDTParser {
     }
 
     /**
+     * Fields of the specification whose values are short (patient number, name, birth date, sex, height, weight,
+     * language: at most a few dozen characters). A long value in one of them comes from reading a four digit
+     * length with three digits.
+     */
+    private static final java.util.Set<String> SHORT_FIELDS = new java.util.HashSet<String>(java.util.Arrays.asList(
+            "3000", "3100", "3101", "3102", "3103", "3104", "3105", "3106", "3107", "3108", "3110", "3622", "3623", "3628"));
+    /** More than any short field holds. */
+    private static final int SHORT_FIELD_MAX = 100;
+
+    /**
      * A line with a four digit length: 1342 8420 text instead of 134 2842 0text. It is only read that way when
-     * the length is at least 1000, the line cannot be right with three digits, and the four digit reading gives
-     * a field of the specification where the three digit reading gives one that is not.
+     * the length is at least 1000, the line cannot be right with three digits, the four digit reading gives a
+     * field of the specification, and either
+     * <ul>
+     * <li>the three digit reading gives a field that is not in the specification, or</li>
+     * <li>both give a known field (1003 6220 text reads as 100 3622 0text) and the four digit length is exactly
+     * the length of the line, or the three digit field is a short one with a value far too long for it.</li>
+     * </ul>
      */
     private static boolean isLongLine(String line, String id3, String value3) {
         if (line.length() < 8 || !digits(line, 0, 8) || Integer.parseInt(line.substring(0, 4)) < 1000) {
@@ -225,7 +240,18 @@ public final class GDTParser {
         if (Integer.parseInt(line.substring(0, 3)) == lineLength(value3)) {
             return false;
         }
-        return GDTFields.fieldName(id3) == null && GDTFields.fieldName(line.substring(4, 8)) != null;
+        String id4 = line.substring(4, 8);
+        if (GDTFields.fieldName(id4) == null) {
+            return false;
+        }
+        if (GDTFields.fieldName(id3) == null) {
+            return true;
+        }
+        String value4 = line.substring(8);
+        if (Integer.parseInt(line.substring(0, 4)) == lineLength(value4) + 1) {
+            return true;
+        }
+        return SHORT_FIELDS.contains(id3) && contentLength(value3) > SHORT_FIELD_MAX;
     }
 
     private static void appendToLast(FieldSet set, String line) {
