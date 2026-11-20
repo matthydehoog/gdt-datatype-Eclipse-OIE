@@ -317,8 +317,8 @@ Every push and pull request is built and tested by [GitHub Actions](.github/work
 2. Commit, then tag and push the tag:
 
    ```bash
-   git tag v1.0.7
-   git push origin v1.0.7
+   git tag v1.1.0
+   git push origin v1.1.0
    ```
 
 The workflow builds the tag and creates the GitHub release with the zip and its SHA-256. To write the release notes yourself, create the release on GitHub first (without a zip); the workflow then only adds the zip and the checksum.
